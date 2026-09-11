@@ -440,6 +440,9 @@ func (h *Handler) Accept(c *gin.Context) {
 	c.JSON(200, gin.H{"ride": rideJSON(ride)})
 }
 
+// Decline lets a driver release a claimed ride offer. The ride state change and
+// the driver's availability restoration run in one transaction so a driver can
+// never end up unavailable with no active ride (declined but availability stuck).
 func (h *Handler) Decline(c *gin.Context) {
 	driverID, ok := parseUser(c)
 	if !ok {
@@ -450,15 +453,17 @@ func (h *Handler) Decline(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "invalid ride id"})
 		return
 	}
-	if err := h.q.DeclineRideOffer(c.Request.Context(), db.DeclineRideOfferParams{RideID: rideID, DriverID: driverID}); err != nil {
-		c.JSON(500, gin.H{"error": "failed to decline ride offer"})
-		return
-	}
-	if _, err := h.q.SetDriverAvailability(c.Request.Context(), db.SetDriverAvailabilityParams{
-		DriverID: driverID,
-		IsOnline: true,
+	if err := h.withTx(c.Request.Context(), func(q *db.Queries) error {
+		if err := q.DeclineRideOffer(c.Request.Context(), db.DeclineRideOfferParams{RideID: rideID, DriverID: driverID}); err != nil {
+			return err
+		}
+		_, err := q.SetDriverAvailability(c.Request.Context(), db.SetDriverAvailabilityParams{
+			DriverID: driverID,
+			IsOnline: true,
+		})
+		return err
 	}); err != nil {
-		c.JSON(500, gin.H{"error": "offer declined but failed to restore availability"})
+		c.JSON(409, gin.H{"error": "ride offer is unavailable or expired"})
 		return
 	}
 	c.JSON(200, gin.H{"status": "declined"})

@@ -13,6 +13,7 @@ import (
 	"github.com/ridex/ridex-angola/internal/db"
 	"github.com/ridex/ridex-angola/internal/payment"
 	"github.com/ridex/ridex-angola/internal/payment/providers"
+	"github.com/ridex/ridex-angola/internal/payouts"
 	"go.uber.org/zap"
 )
 
@@ -23,6 +24,10 @@ const (
 	// configured provider; otherwise the ledger relies on webhooks alone.
 	reconcileInterval   = 5 * time.Minute
 	reconcileBatchLimit = 25
+	// Payout execution submits approved payouts to the configured executor and
+	// polls in-flight ones. It only runs when PAYOUT_EXECUTOR is set.
+	payoutExecutionInterval = 5 * time.Minute
+	payoutBatchLimit        = 25
 )
 
 func main() {
@@ -77,6 +82,19 @@ func main() {
 	}
 	ledger := payment.NewService(queries).WithStatusPoller(statusPoller)
 
+	// Payout executor for driver payout execution. "manual" uses the
+	// deterministic in-process executor (submissions recorded, no real money
+	// movement); any real banking/Multicaixa provider plugs in here later.
+	var payoutLedger *payouts.Ledger
+	executorName := strings.ToLower(strings.TrimSpace(cfg.PayoutExecutor))
+	if executorName == "manual" {
+		payoutLedger = payouts.NewLedgerWithTx(queries, pool.Begin).WithExecutor(payouts.NewManualExecutor())
+		logger.Info("payout execution enabled", zap.String("executor", executorName),
+			zap.Duration("interval", payoutExecutionInterval))
+	} else if executorName != "" && executorName != "none" {
+		logger.Warn("payout execution disabled: unknown executor", zap.String("executor", executorName))
+	}
+
 	runCleanup := func() {
 		if err := cleanup(ctx, pool, queries); err != nil {
 			logger.Error("background cleanup failed", zap.Error(err))
@@ -98,13 +116,40 @@ func main() {
 		}
 	}
 
+	runPayoutExec := func() {
+		if payoutLedger == nil {
+			return
+		}
+		submission, err := payoutLedger.ProcessPayoutSubmissions(ctx, payoutBatchLimit)
+		if err != nil {
+			logger.Error("payout submission failed", zap.Error(err))
+			return
+		}
+		poll, err := payoutLedger.PollPayoutExecutions(ctx, payoutBatchLimit)
+		if err != nil {
+			logger.Error("payout polling failed", zap.Error(err))
+			return
+		}
+		if submission.Checked != 0 || submission.Submitted != 0 || submission.Failed != 0 ||
+			poll.Checked != 0 || poll.Updated != 0 || poll.Failed != 0 {
+			logger.Info("payout execution completed",
+				zap.Int("submittedChecked", submission.Checked), zap.Int("submitted", submission.Submitted),
+				zap.Int("submissionFailed", submission.Failed),
+				zap.Int("polls", poll.Checked), zap.Int("settled", poll.Updated),
+				zap.Int("pollSkipped", poll.Skipped), zap.Int("pollFailed", poll.Failed))
+		}
+	}
+
 	runCleanup()
 	runReconcile()
+	runPayoutExec()
 
 	ticker := time.NewTicker(cleanupInterval)
 	defer ticker.Stop()
 	reconcileTicker := time.NewTicker(reconcileInterval)
 	defer reconcileTicker.Stop()
+	payoutTicker := time.NewTicker(payoutExecutionInterval)
+	defer payoutTicker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -114,6 +159,8 @@ func main() {
 			runCleanup()
 		case <-reconcileTicker.C:
 			runReconcile()
+		case <-payoutTicker.C:
+			runPayoutExec()
 		}
 	}
 }

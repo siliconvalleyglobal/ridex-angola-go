@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -29,6 +30,7 @@ var (
 	ErrPayoutNotFound       = errors.New("payout request not found")
 	ErrPayoutTransition     = errors.New("payout status transition is not allowed")
 	ErrWalletNotFound       = errors.New("driver wallet not found")
+	ErrExecutorUnavailable  = errors.New("payout executor is not configured")
 )
 
 // Store is the database surface used by the payout ledger. Keeping it narrow
@@ -49,6 +51,9 @@ type Store interface {
 	UpdateLastPayout(context.Context, uuid.UUID) error
 	ListPayoutRequestsByDriver(context.Context, db.ListPayoutRequestsByDriverParams) ([]db.PayoutRequest, error)
 	ListPayoutRequestsByStatus(context.Context, db.ListPayoutRequestsByStatusParams) ([]db.PayoutRequest, error)
+	ListPayoutRequestsNeedingSubmission(ctx context.Context, limit int32) ([]db.PayoutRequest, error)
+	ListPayoutRequestsInFlight(ctx context.Context, limit int32) ([]db.PayoutRequest, error)
+	SetPayoutRequestReference(context.Context, db.SetPayoutRequestReferenceParams) (db.PayoutRequest, error)
 	ListWalletTransactions(context.Context, db.ListWalletTransactionsParams) ([]db.WalletTransaction, error)
 	GetWalletEarningsSummary(context.Context, uuid.UUID) (db.GetWalletEarningsSummaryRow, error)
 }
@@ -67,6 +72,9 @@ type Ledger struct {
 	// audit receives lifecycle events. It is never nil: constructors fall back
 	// to the in-process no-op logger.
 	audit AuditLogger
+	// exec submits and polls payer money movement. It is nil until a provider
+	// is configured; the worker checks it before running payout jobs.
+	exec Executor
 }
 
 // NewLedger creates a payout ledger without transaction support (read paths
@@ -93,6 +101,16 @@ func (l *Ledger) WithMethods(methods *PayoutMethods) *Ledger {
 func (l *Ledger) WithAudit(audit AuditLogger) *Ledger {
 	if audit != nil {
 		l.audit = audit
+	}
+	return l
+}
+
+// WithExecutor wires a money-movement executor onto the ledger. The worker
+// calls ProcessPayoutSubmissions and PollPayoutExecutions only when this is
+// set; the API never needs it.
+func (l *Ledger) WithExecutor(exec Executor) *Ledger {
+	if exec != nil {
+		l.exec = exec
 	}
 	return l
 }
@@ -335,6 +353,104 @@ func (l *Ledger) FailPayout(ctx context.Context, payoutID uuid.UUID, reason stri
 	}
 	RecordPayoutEvent(l.audit, ctx, PayoutEvent{PayoutID: request.ID.String(), DriverID: request.DriverID.String(), AmountCents: request.AmountCents, Status: "failed", Method: request.Method, Reason: reason})
 	return request, nil
+}
+
+// PayoutProcessResult summarizes one worker pass. Translated statuses are
+// idempotent: the SQL transition guards make repeated passes no-ops.
+type PayoutProcessResult struct {
+	Checked   int
+	Submitted int
+	Updated   int
+	Skipped   int
+	Failed    int
+}
+
+// ProcessPayoutSubmissions forwards approved payouts — requests an admin moved
+// to 'processing' that have no provider reference yet — to the configured
+// executor and persists the returned reference. A submission error reverses
+// the payout through FailPayout so the wallet is never left debited for a
+// payout that never reached a provider.
+func (l *Ledger) ProcessPayoutSubmissions(ctx context.Context, limit int32) (PayoutProcessResult, error) {
+	if l.exec == nil {
+		return PayoutProcessResult{}, ErrExecutorUnavailable
+	}
+	if limit < 1 {
+		limit = 1
+	}
+	requests, err := l.store.ListPayoutRequestsNeedingSubmission(ctx, limit)
+	if err != nil {
+		return PayoutProcessResult{}, fmt.Errorf("list payouts needing submission: %w", err)
+	}
+	result := PayoutProcessResult{Checked: len(requests)}
+	for _, req := range requests {
+		submission, submitErr := l.exec.Submit(req.Method, req.AmountCents, req.DriverID, req.ID.String())
+		if submitErr != nil {
+			reason := "payout submission failed: " + submitErr.Error()
+			if _, failErr := l.FailPayout(ctx, req.ID, reason); failErr == nil {
+				result.Failed++
+			} else {
+				result.Skipped++
+			}
+			continue
+		}
+		// The row guard (processing AND reference IS NULL) makes concurrent
+		// workers idempotent; a lost update here is retried next pass.
+		if _, setErr := l.store.SetPayoutRequestReference(ctx, db.SetPayoutRequestReferenceParams{
+			ID:          req.ID,
+			ReferenceID: pgtype.Text{String: submission.Reference, Valid: strings.TrimSpace(submission.Reference) != ""},
+		}); setErr != nil {
+			result.Skipped++
+			continue
+		}
+		result.Submitted++
+	}
+	return result, nil
+}
+
+// PollPayoutExecutions asks the executor for the current state of payouts in
+// flight (processing with a reference). Completed payouts settle normally;
+// failed payouts reverse the withdrawal. Unknown states and transient poll
+// errors are skipped — never guessed — so they surface in the worker counts.
+func (l *Ledger) PollPayoutExecutions(ctx context.Context, limit int32) (PayoutProcessResult, error) {
+	if l.exec == nil {
+		return PayoutProcessResult{}, ErrExecutorUnavailable
+	}
+	if limit < 1 {
+		limit = 1
+	}
+	requests, err := l.store.ListPayoutRequestsInFlight(ctx, limit)
+	if err != nil {
+		return PayoutProcessResult{}, fmt.Errorf("list in-flight payouts: %w", err)
+	}
+	result := PayoutProcessResult{Checked: len(requests)}
+	for _, req := range requests {
+		if !req.ReferenceID.Valid {
+			result.Skipped++
+			continue
+		}
+		info, pollErr := l.exec.Status(req.ReferenceID.String)
+		if pollErr != nil {
+			result.Skipped++
+			continue
+		}
+		switch info.Status {
+		case StatusCompleted:
+			if _, completeErr := l.CompletePayout(ctx, req.ID); completeErr == nil {
+				result.Updated++
+			} else {
+				result.Failed++
+			}
+		case StatusFailed:
+			if _, failErr := l.FailPayout(ctx, req.ID, "provider reported failure: "+info.Message); failErr == nil {
+				result.Updated++
+			} else {
+				result.Failed++
+			}
+		default:
+			result.Skipped++
+		}
+	}
+	return result, nil
 }
 
 // WalletOverview is the driver-facing wallet summary.

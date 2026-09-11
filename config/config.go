@@ -85,6 +85,10 @@ type Config struct {
 	PaymentProvider      string
 	PaymentWebhookSecret string
 
+	// Payout execution. "manual" uses the in-process executor (submissions are
+	// recorded; no real money moves). Empty/"none" disables the worker jobs.
+	PayoutExecutor string
+
 	// AppyPay
 	AppyPayClientID     string
 	AppyPayClientSecret string
@@ -190,6 +194,7 @@ func Load() (*Config, error) {
 
 	c.PaymentProvider = viper.GetString("PAYMENT_PROVIDER")
 	c.PaymentWebhookSecret = viper.GetString("PAYMENT_WEBHOOK_SECRET")
+	c.PayoutExecutor = viper.GetString("PAYOUT_EXECUTOR")
 
 	c.AppyPayClientID = viper.GetString("APPYPAY_CLIENT_ID")
 	c.AppyPayClientSecret = viper.GetString("APPYPAY_CLIENT_SECRET")
@@ -302,6 +307,9 @@ func (c *Config) Validate() error {
 	if strings.TrimSpace(c.PaymentProvider) != "" && strings.ToLower(c.PaymentProvider) != "none" &&
 		(isUnsafeSecret(c.PaymentWebhookSecret) || len([]byte(c.PaymentWebhookSecret)) < 32) {
 		return fmt.Errorf("PAYMENT_WEBHOOK_SECRET must be configured with at least 32 bytes when payments are enabled")
+	}
+	if payoutExecutor := strings.ToLower(strings.TrimSpace(c.PayoutExecutor)); payoutExecutor != "" && payoutExecutor != "none" && payoutExecutor != "manual" {
+		return fmt.Errorf("PAYOUT_EXECUTOR must be 'manual' when set (got %q)", payoutExecutor)
 	}
 	if c.CORSAllowCredentials {
 		for _, origin := range c.CORSAllowedOrigins {

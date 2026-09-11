@@ -168,6 +168,45 @@ func (f *fakeWalletStore) ListPayoutRequestsByStatus(_ context.Context, arg db.L
 	return out, nil
 }
 
+func (f *fakeWalletStore) ListPayoutRequestsNeedingSubmission(_ context.Context, limit int32) ([]db.PayoutRequest, error) {
+	var out []db.PayoutRequest
+	for _, r := range f.payouts {
+		if r.Status == "processing" && !r.ReferenceID.Valid {
+			out = append(out, r)
+		}
+	}
+	if int32(len(out)) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (f *fakeWalletStore) ListPayoutRequestsInFlight(_ context.Context, limit int32) ([]db.PayoutRequest, error) {
+	var out []db.PayoutRequest
+	for _, r := range f.payouts {
+		if r.Status == "processing" && r.ReferenceID.Valid {
+			out = append(out, r)
+		}
+	}
+	if int32(len(out)) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (f *fakeWalletStore) SetPayoutRequestReference(_ context.Context, arg db.SetPayoutRequestReferenceParams) (db.PayoutRequest, error) {
+	for i := range f.payouts {
+		if f.payouts[i].ID == arg.ID {
+			if f.payouts[i].Status != "processing" || f.payouts[i].ReferenceID.Valid {
+				return db.PayoutRequest{}, pgx.ErrNoRows
+			}
+			f.payouts[i].ReferenceID = arg.ReferenceID
+			return f.payouts[i], nil
+		}
+	}
+	return db.PayoutRequest{}, pgx.ErrNoRows
+}
+
 func (f *fakeWalletStore) ListWalletTransactions(_ context.Context, arg db.ListWalletTransactionsParams) ([]db.WalletTransaction, error) {
 	var out []db.WalletTransaction
 	for _, t := range f.transactions {
@@ -384,5 +423,198 @@ func TestNumericToInt64HandlesScannedTypes(t *testing.T) {
 		if got := numericToInt64(value); got != want {
 			t.Fatalf("numericToInt64(%v) = %d, want %d", value, got, want)
 		}
+	}
+}
+
+type fakeExecutor struct {
+	refs      map[string]string
+	lastRef   string
+	submitErr error
+	statusErr error
+}
+
+func (e *fakeExecutor) Submit(_ string, _ int64, _ uuid.UUID, _ string) (Submission, error) {
+	if e.submitErr != nil {
+		return Submission{}, e.submitErr
+	}
+	ref := "bank-" + uuid.New().String()
+	e.lastRef = ref
+	e.refs[ref] = StatusProcessing
+	return Submission{Reference: ref, Status: StatusProcessing, Message: "accepted"}, nil
+}
+
+func (e *fakeExecutor) Status(reference string) (StatusInfo, error) {
+	state, ok := e.refs[reference]
+	if !ok {
+		return StatusInfo{}, errors.New("unknown reference: " + reference)
+	}
+	if e.statusErr != nil {
+		return StatusInfo{}, e.statusErr
+	}
+	return StatusInfo{Reference: reference, Status: state, Message: "fake status"}, nil
+}
+
+// approvedStoreWith returns a store with a withdrawn, admin-approved payout in
+// 'processing' (no provider reference) and the wallet pending ledger entry.
+func approvedStoreWith(driverID uuid.UUID) (*fakeWalletStore, db.PayoutRequest, *Ledger) {
+	store := walletStoreWith(driverID, 10000)
+	ledger := NewLedger(store)
+
+	request, _, err := ledger.RequestWithdrawal(context.Background(), WithdrawalInput{
+		DriverID: driverID, AmountCents: 6000, Method: "multicada",
+	})
+	if err != nil {
+		return nil, db.PayoutRequest{}, nil
+	}
+	approved, err := ledger.ApprovePayout(context.Background(), request.ID)
+	if err != nil {
+		return nil, db.PayoutRequest{}, nil
+	}
+	return store, approved, ledger
+}
+
+func TestProcessPayoutSubmissionsSubmitsAndPersistsReference(t *testing.T) {
+	driverID := uuid.New()
+	store, request, ledger := approvedStoreWith(driverID)
+	if request.ID == uuid.Nil {
+		t.Fatal("store setup failed")
+	}
+	exec := &fakeExecutor{refs: make(map[string]string)}
+	result, err := ledger.WithExecutor(exec).ProcessPayoutSubmissions(context.Background(), 25)
+	if err != nil {
+		t.Fatalf("process submissions: %v", err)
+	}
+	if result.Checked != 1 || result.Submitted != 1 {
+		t.Fatalf("process result = %#v, want checked 1 submitted 1", result)
+	}
+	if !store.payouts[0].ReferenceID.Valid || store.payouts[0].ReferenceID.String != exec.lastRef {
+		t.Fatalf("stored reference = %#v, want %q", store.payouts[0].ReferenceID, exec.lastRef)
+	}
+}
+
+func TestProcessPayoutSubmissionsReversesOnSubmitError(t *testing.T) {
+	driverID := uuid.New()
+	store, _, _ := approvedStoreWith(driverID)
+	exec := &fakeExecutor{refs: make(map[string]string), submitErr: errors.New("provider down")}
+	ledger := NewLedger(store).WithExecutor(exec)
+	result, err := ledger.ProcessPayoutSubmissions(context.Background(), 25)
+	if err != nil {
+		t.Fatalf("process submissions: %v", err)
+	}
+	if result.Checked != 1 || result.Failed != 1 {
+		t.Fatalf("process result = %#v, want checked 1 failed 1", result)
+	}
+	if store.payouts[0].Status != "failed" {
+		t.Fatalf("payout status = %q, want failed", store.payouts[0].Status)
+	}
+	if store.wallet.BalanceCents != 10000 {
+		t.Fatalf("refunded balance = %d, want 10000", store.wallet.BalanceCents)
+	}
+}
+
+func TestProcessPayoutSubmissionsRequiresExecutor(t *testing.T) {
+	ledger := NewLedger(walletStoreWith(uuid.New(), 10000))
+	if _, err := ledger.ProcessPayoutSubmissions(context.Background(), 25); !errors.Is(err, ErrExecutorUnavailable) {
+		t.Fatalf("process without executor: err = %v, want ErrExecutorUnavailable", err)
+	}
+	if _, err := ledger.PollPayoutExecutions(context.Background(), 25); !errors.Is(err, ErrExecutorUnavailable) {
+		t.Fatalf("poll without executor: err = %v, want ErrExecutorUnavailable", err)
+	}
+}
+
+func TestPollPayoutExecutionsSettlesCompleted(t *testing.T) {
+	driverID := uuid.New()
+	store, request, ledger := approvedStoreWith(driverID)
+	if request.ID == uuid.Nil {
+		t.Fatal("store setup failed")
+	}
+	const reference = "bank-ref-completed"
+	store.payouts[0].ReferenceID = pgtype.Text{String: reference, Valid: true}
+	exec := &fakeExecutor{refs: map[string]string{reference: StatusCompleted}}
+
+	result, err := ledger.WithExecutor(exec).PollPayoutExecutions(context.Background(), 25)
+	if err != nil {
+		t.Fatalf("poll: %v", err)
+	}
+	if result.Checked != 1 || result.Updated != 1 {
+		t.Fatalf("poll result = %#v, want checked 1 updated 1", result)
+	}
+	if store.payouts[0].Status != "completed" {
+		t.Fatalf("payout status = %q, want completed", store.payouts[0].Status)
+	}
+	if store.wallet.BalanceCents != 4000 {
+		t.Fatalf("balance = %d, want 4000 (settlement keeps the debit)", store.wallet.BalanceCents)
+	}
+	if store.lastPayoutCalls != 1 {
+		t.Fatalf("last payout updates = %d, want 1", store.lastPayoutCalls)
+	}
+}
+
+func TestPollPayoutExecutionsReversesFailed(t *testing.T) {
+	driverID := uuid.New()
+	store, request, ledger := approvedStoreWith(driverID)
+	if request.ID == uuid.Nil {
+		t.Fatal("store setup failed")
+	}
+	const reference = "bank-ref-failed"
+	store.payouts[0].ReferenceID = pgtype.Text{String: reference, Valid: true}
+	exec := &fakeExecutor{refs: map[string]string{reference: StatusFailed}}
+
+	result, err := ledger.WithExecutor(exec).PollPayoutExecutions(context.Background(), 25)
+	if err != nil {
+		t.Fatalf("poll: %v", err)
+	}
+	if result.Checked != 1 || result.Updated != 1 {
+		t.Fatalf("poll result = %#v, want checked 1 updated 1", result)
+	}
+	if store.payouts[0].Status != "failed" {
+		t.Fatalf("payout status = %q, want failed", store.payouts[0].Status)
+	}
+	if store.wallet.BalanceCents != 10000 {
+		t.Fatalf("balance = %d, want 10000 (withdrawal refunded)", store.wallet.BalanceCents)
+	}
+}
+
+func TestPollPayoutExecutionsSkipsUnknownStates(t *testing.T) {
+	driverID := uuid.New()
+	store, request, ledger := approvedStoreWith(driverID)
+	if request.ID == uuid.Nil {
+		t.Fatal("store setup failed")
+	}
+	const reference = "bank-ref-mystery"
+	store.payouts[0].ReferenceID = pgtype.Text{String: reference, Valid: true}
+	exec := &fakeExecutor{refs: map[string]string{reference: "mystery_state"}}
+
+	result, err := ledger.WithExecutor(exec).PollPayoutExecutions(context.Background(), 25)
+	if err != nil {
+		t.Fatalf("poll: %v", err)
+	}
+	if result.Checked != 1 || result.Skipped != 1 || result.Updated != 0 {
+		t.Fatalf("poll result = %#v, want checked 1 skipped 1", result)
+	}
+	if store.payouts[0].Status != "processing" {
+		t.Fatalf("payout status = %q, want processing (unknown state never guessed)", store.payouts[0].Status)
+	}
+}
+
+func TestPollPayoutExecutionsSkipsPollErrors(t *testing.T) {
+	driverID := uuid.New()
+	store, request, ledger := approvedStoreWith(driverID)
+	if request.ID == uuid.Nil {
+		t.Fatal("store setup failed")
+	}
+	const reference = "bank-ref-timeout"
+	store.payouts[0].ReferenceID = pgtype.Text{String: reference, Valid: true}
+	exec := &fakeExecutor{refs: map[string]string{reference: StatusCompleted}, statusErr: errors.New("provider timeout")}
+
+	result, err := ledger.WithExecutor(exec).PollPayoutExecutions(context.Background(), 25)
+	if err != nil {
+		t.Fatalf("poll: %v", err)
+	}
+	if result.Checked != 1 || result.Skipped != 1 {
+		t.Fatalf("poll result = %#v, want checked 1 skipped 1", result)
+	}
+	if store.payouts[0].Status != "processing" {
+		t.Fatalf("payout status = %q, want processing (transient error must not settle)", store.payouts[0].Status)
 	}
 }

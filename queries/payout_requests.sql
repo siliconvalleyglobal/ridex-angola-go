@@ -56,3 +56,21 @@ SELECT * FROM wallet_transactions
 WHERE reference_id = $1 AND reference_type = 'payout'
 ORDER BY created_at DESC
 LIMIT 1;
+
+-- name: ListPayoutRequestsNeedingSubmission :many
+SELECT * FROM payout_requests
+WHERE status = 'processing' AND reference_id IS NULL
+ORDER BY requested_at ASC
+LIMIT $1;
+
+-- name: ListPayoutRequestsInFlight :many
+SELECT * FROM payout_requests
+WHERE status = 'processing' AND reference_id IS NOT NULL
+ORDER BY requested_at ASC
+LIMIT $1;
+
+-- name: SetPayoutRequestReference :one
+UPDATE payout_requests
+SET reference_id = $2
+WHERE id = $1 AND status = 'processing' AND reference_id IS NULL
+RETURNING *;

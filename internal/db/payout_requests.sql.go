@@ -274,6 +274,82 @@ func (q *Queries) ListPayoutRequestsByStatus(ctx context.Context, arg ListPayout
 	return items, nil
 }
 
+const listPayoutRequestsInFlight = `-- name: ListPayoutRequestsInFlight :many
+SELECT id, driver_id, amount_cents, method, status, reference_id, requested_at, processed_at, failure_reason, created_at FROM payout_requests
+WHERE status = 'processing' AND reference_id IS NOT NULL
+ORDER BY requested_at ASC
+LIMIT $1
+`
+
+func (q *Queries) ListPayoutRequestsInFlight(ctx context.Context, limit int32) ([]PayoutRequest, error) {
+	rows, err := q.db.Query(ctx, listPayoutRequestsInFlight, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PayoutRequest
+	for rows.Next() {
+		var i PayoutRequest
+		if err := rows.Scan(
+			&i.ID,
+			&i.DriverID,
+			&i.AmountCents,
+			&i.Method,
+			&i.Status,
+			&i.ReferenceID,
+			&i.RequestedAt,
+			&i.ProcessedAt,
+			&i.FailureReason,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPayoutRequestsNeedingSubmission = `-- name: ListPayoutRequestsNeedingSubmission :many
+SELECT id, driver_id, amount_cents, method, status, reference_id, requested_at, processed_at, failure_reason, created_at FROM payout_requests
+WHERE status = 'processing' AND reference_id IS NULL
+ORDER BY requested_at ASC
+LIMIT $1
+`
+
+func (q *Queries) ListPayoutRequestsNeedingSubmission(ctx context.Context, limit int32) ([]PayoutRequest, error) {
+	rows, err := q.db.Query(ctx, listPayoutRequestsNeedingSubmission, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PayoutRequest
+	for rows.Next() {
+		var i PayoutRequest
+		if err := rows.Scan(
+			&i.ID,
+			&i.DriverID,
+			&i.AmountCents,
+			&i.Method,
+			&i.Status,
+			&i.ReferenceID,
+			&i.RequestedAt,
+			&i.ProcessedAt,
+			&i.FailureReason,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markPayoutRequestProcessing = `-- name: MarkPayoutRequestProcessing :one
 UPDATE payout_requests
 SET status = 'processing'
@@ -283,6 +359,36 @@ RETURNING id, driver_id, amount_cents, method, status, reference_id, requested_a
 
 func (q *Queries) MarkPayoutRequestProcessing(ctx context.Context, id uuid.UUID) (PayoutRequest, error) {
 	row := q.db.QueryRow(ctx, markPayoutRequestProcessing, id)
+	var i PayoutRequest
+	err := row.Scan(
+		&i.ID,
+		&i.DriverID,
+		&i.AmountCents,
+		&i.Method,
+		&i.Status,
+		&i.ReferenceID,
+		&i.RequestedAt,
+		&i.ProcessedAt,
+		&i.FailureReason,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const setPayoutRequestReference = `-- name: SetPayoutRequestReference :one
+UPDATE payout_requests
+SET reference_id = $2
+WHERE id = $1 AND status = 'processing' AND reference_id IS NULL
+RETURNING id, driver_id, amount_cents, method, status, reference_id, requested_at, processed_at, failure_reason, created_at
+`
+
+type SetPayoutRequestReferenceParams struct {
+	ID          uuid.UUID
+	ReferenceID pgtype.Text
+}
+
+func (q *Queries) SetPayoutRequestReference(ctx context.Context, arg SetPayoutRequestReferenceParams) (PayoutRequest, error) {
+	row := q.db.QueryRow(ctx, setPayoutRequestReference, arg.ID, arg.ReferenceID)
 	var i PayoutRequest
 	err := row.Scan(
 		&i.ID,

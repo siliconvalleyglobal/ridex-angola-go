@@ -1,7 +1,9 @@
 package payouts
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,11 +17,19 @@ import (
 // Handler exposes wallet and payout endpoints. Mutations are delegated to the
 // ledger, which owns its transactions.
 type Handler struct {
-	ledger *Ledger
+	ledger        *Ledger
+	webhookSecret string
 }
 
 // NewHandler wires payout routes to a transaction-aware ledger.
 func NewHandler(ledger *Ledger) *Handler { return &Handler{ledger: ledger} }
+
+// WithWebhookSecret enables executor callback verification. Without it, the
+// callback endpoint fails closed with 401 for every caller.
+func (h *Handler) WithWebhookSecret(secret string) *Handler {
+	h.webhookSecret = strings.TrimSpace(secret)
+	return h
+}
 
 func parseUser(c *gin.Context) (uuid.UUID, bool) {
 	uid, err := uuid.Parse(c.GetString(auth.ContextUserID))
@@ -28,6 +38,62 @@ func parseUser(c *gin.Context) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return uid, true
+}
+
+// payoutWebhookPayload is the executor callback body. reference is the
+// payout_requests id echoed from the submission — the idempotency key.
+type payoutWebhookPayload struct {
+	Reference string `json:"reference"`
+	Status    string `json:"status"`
+	Message   string `json:"message"`
+}
+
+// PayoutWebhook receives executor push callbacks for payout state changes.
+// The executor signs the raw body with HMAC-SHA256 over PAYOUT_WEBHOOK_SECRET
+// and sends the hex signature in X-Payout-Signature. Duplicate or late
+// callbacks are idempotent through the ledger's SQL transition guards.
+func (h *Handler) PayoutWebhook(c *gin.Context) {
+	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10))
+	if err != nil {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "webhook body is too large"})
+		return
+	}
+	if err := VerifyWebhookSignature(body, c.GetHeader("X-Payout-Signature"), h.webhookSecret); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid webhook signature"})
+		return
+	}
+	var payload payoutWebhookPayload
+	if err := json.Unmarshal(body, &payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid webhook payload"})
+		return
+	}
+	payoutID, err := uuid.Parse(strings.TrimSpace(payload.Reference))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "reference must be the payout request id"})
+		return
+	}
+	request, err := h.ledger.RecordPayoutCallback(c.Request.Context(), PayoutCallback{
+		PayoutID: payoutID,
+		Status:   strings.ToLower(strings.TrimSpace(payload.Status)),
+		Message:  payload.Message,
+	})
+	switch {
+	case errors.Is(err, ErrPayoutNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "payout request not found"})
+	case errors.Is(err, ErrPayoutTransition):
+		c.JSON(http.StatusConflict, gin.H{"error": "payout status transition is not allowed"})
+	case errors.Is(err, ErrInvalidCallback):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payout callback status"})
+	case err != nil:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to record payout callback"})
+	default:
+		c.JSON(http.StatusAccepted, gin.H{
+			"payoutId":    request.ID,
+			"driverId":    request.DriverID,
+			"amountCents": request.AmountCents,
+			"status":      request.Status,
+		})
+	}
 }
 
 func paginateFromQuery(c *gin.Context) (int32, int32) {

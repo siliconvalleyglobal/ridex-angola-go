@@ -135,6 +135,7 @@ func (f *fakeWalletStore) FailPayoutRequest(_ context.Context, arg db.FailPayout
 				return db.PayoutRequest{}, pgx.ErrNoRows
 			}
 			f.payouts[i].Status = "failed"
+			f.payouts[i].FailureReason = arg.FailureReason
 			return f.payouts[i], nil
 		}
 	}

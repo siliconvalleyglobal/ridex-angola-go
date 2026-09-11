@@ -95,6 +95,9 @@ type Config struct {
 	PayoutExecutorURL string
 	// PayoutExecutorAPIKey is the bearer token for the "http" executor.
 	PayoutExecutorAPIKey string
+	// PayoutWebhookSecret signs executor push callbacks (HMAC-SHA256 over the
+	// raw body); the callback endpoint fails closed without it.
+	PayoutWebhookSecret string
 
 	// AppyPay
 	AppyPayClientID     string
@@ -204,6 +207,7 @@ func Load() (*Config, error) {
 	c.PayoutExecutor = viper.GetString("PAYOUT_EXECUTOR")
 	c.PayoutExecutorURL = viper.GetString("PAYOUT_EXECUTOR_URL")
 	c.PayoutExecutorAPIKey = viper.GetString("PAYOUT_EXECUTOR_API_KEY")
+	c.PayoutWebhookSecret = viper.GetString("PAYOUT_WEBHOOK_SECRET")
 
 	c.AppyPayClientID = viper.GetString("APPYPAY_CLIENT_ID")
 	c.AppyPayClientSecret = viper.GetString("APPYPAY_CLIENT_SECRET")
@@ -274,6 +278,7 @@ func setDefaults() {
 	viper.SetDefault("PAYOUT_EXECUTOR", "")
 	viper.SetDefault("PAYOUT_EXECUTOR_URL", "")
 	viper.SetDefault("PAYOUT_EXECUTOR_API_KEY", "")
+	viper.SetDefault("PAYOUT_WEBHOOK_SECRET", "")
 	viper.SetDefault("APPYPAY_BASE_URL", "https://sandbox.appypay.co")
 	viper.SetDefault("APPYPAY_GPO_ENABLED", true)
 	viper.SetDefault("VPOS_BASE_URL", "https://api.vpos.ao")
@@ -333,6 +338,9 @@ func (c *Config) Validate() error {
 		}
 		if isUnsafeSecret(c.PayoutExecutorAPIKey) || len([]byte(c.PayoutExecutorAPIKey)) < 32 {
 			return fmt.Errorf("PAYOUT_EXECUTOR_API_KEY must be a random secret of at least 32 bytes when PAYOUT_EXECUTOR is 'http'")
+		}
+		if isUnsafeSecret(c.PayoutWebhookSecret) || len([]byte(c.PayoutWebhookSecret)) < 32 {
+			return fmt.Errorf("PAYOUT_WEBHOOK_SECRET must be a random secret of at least 32 bytes when PAYOUT_EXECUTOR is 'http'")
 		}
 	}
 	if c.CORSAllowCredentials {

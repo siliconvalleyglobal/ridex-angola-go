@@ -143,7 +143,7 @@ func main() {
 		logger.Info("payout methods configured", zap.String("methods", raw))
 	}
 	payoutLedger := payouts.NewLedgerWithTx(q, pool.Begin).WithMethods(payoutMethods)
-	payoutHandler := payouts.NewHandler(payoutLedger)
+	payoutHandler := payouts.NewHandler(payoutLedger).WithWebhookSecret(cfg.PayoutWebhookSecret)
 	// Payment provider clients are created from configuration. A provider is
 	// only usable when its credentials are present; PAYMENT_PROVIDER selects
 	// the charger used for intent creation. Without a selection the ledger
@@ -399,6 +399,10 @@ func main() {
 		// documented metadata to these headers; no provider calls are made here.
 		v1.POST("/payments/webhooks/:provider/:providerChargeID", paymentHandler.Webhook)
 		v1.POST("/payments/webhooks/:provider", paymentHandler.Webhook)
+
+		// Payout executor callback ingress: HMAC-verified push settlement for
+		// submitted payouts (complements the worker's polling loop).
+		v1.POST("/payouts/webhooks/:executor", payoutHandler.PayoutWebhook)
 
 		rides := v1.Group("/rides")
 		{

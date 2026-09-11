@@ -3,6 +3,7 @@ package payouts
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -509,6 +510,28 @@ func TestProcessPayoutSubmissionsReversesOnSubmitError(t *testing.T) {
 	}
 	if store.wallet.BalanceCents != 10000 {
 		t.Fatalf("refunded balance = %d, want 10000", store.wallet.BalanceCents)
+	}
+}
+
+func TestProcessPayoutSubmissionsHoldsOnUncertain(t *testing.T) {
+	driverID := uuid.New()
+	store, request, ledger := approvedStoreWith(driverID)
+	if request.ID == uuid.Nil {
+		t.Fatal("store setup failed")
+	}
+	exec := &fakeExecutor{refs: make(map[string]string), submitErr: fmt.Errorf("%w: response lost", ErrSubmitUncertain)}
+	result, err := ledger.WithExecutor(exec).ProcessPayoutSubmissions(context.Background(), 25)
+	if err != nil {
+		t.Fatalf("process submissions: %v", err)
+	}
+	if result.Checked != 1 || result.Uncertain != 1 || result.Failed != 0 || result.Submitted != 0 {
+		t.Fatalf("process result = %#v, want checked 1 uncertain 1 failed 0", result)
+	}
+	if store.payouts[0].Status != "processing" {
+		t.Fatalf("payout status = %q, want processing (may be in flight at the provider)", store.payouts[0].Status)
+	}
+	if store.wallet.BalanceCents != 4000 {
+		t.Fatalf("balance = %d, want 4000 (debit held while the outcome is unknown)", store.wallet.BalanceCents)
 	}
 }
 

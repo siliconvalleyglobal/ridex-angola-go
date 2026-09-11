@@ -150,3 +150,36 @@ func TestCanonicalStatusIsCaseInsensitiveAndTrimmed(t *testing.T) {
 		}
 	}
 }
+
+func TestHTTPExecutorClassifiesUncertainSubmissions(t *testing.T) {
+	// Transport failure: connection refused after the server is gone.
+	closed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	closed.Close()
+	if _, err := httpExecutorFor(t, closed).Submit("bank", 100, uuid.New(), "req-1"); !errors.Is(err, payouts.ErrSubmitUncertain) {
+		t.Fatalf("transport err = %v, want uncertain", err)
+	}
+
+	cases := []struct {
+		name      string
+		status    int
+		body      string
+		uncertain bool
+	}{
+		{"provider 500 may have processed", http.StatusInternalServerError, "boom", true},
+		{"provider 400 is a definite rejection", http.StatusBadRequest, `{"error":"bad method"}`, false},
+		{"unknown status means provider got it", http.StatusOK, `{"reference":"bank-x","status":"mystery"}`, true},
+		{"unparseable 2xx means provider got it", http.StatusOK, `<html>ok</html>`, true},
+		{"missing reference means provider got it", http.StatusOK, `{"status":"processing"}`, true},
+	}
+	for _, tc := range cases {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(tc.status)
+			_, _ = w.Write([]byte(tc.body))
+		}))
+		_, err := httpExecutorFor(t, server).Submit("bank", 100, uuid.New(), "req-1")
+		server.Close()
+		if got := errors.Is(err, payouts.ErrSubmitUncertain); got != tc.uncertain {
+			t.Fatalf("%s: err = %v, uncertain = %v, want %v", tc.name, err, got, tc.uncertain)
+		}
+	}
+}

@@ -147,10 +147,11 @@ func main() {
 			return
 		}
 		if submission.Checked != 0 || submission.Submitted != 0 || submission.Failed != 0 ||
+			submission.Uncertain != 0 ||
 			poll.Checked != 0 || poll.Updated != 0 || poll.Failed != 0 {
 			logger.Info("payout execution completed",
 				zap.Int("submittedChecked", submission.Checked), zap.Int("submitted", submission.Submitted),
-				zap.Int("submissionFailed", submission.Failed),
+				zap.Int("submissionFailed", submission.Failed), zap.Int("submissionUncertain", submission.Uncertain),
 				zap.Int("polls", poll.Checked), zap.Int("settled", poll.Updated),
 				zap.Int("pollSkipped", poll.Skipped), zap.Int("pollFailed", poll.Failed))
 		}

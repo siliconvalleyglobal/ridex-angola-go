@@ -363,13 +363,20 @@ type PayoutProcessResult struct {
 	Updated   int
 	Skipped   int
 	Failed    int
+	// Uncertain counts submissions whose outcome is unknown
+	// (ErrSubmitUncertain): the payout stays in flight with its debit held
+	// and is retried with the same idempotency reference on the next pass.
+	Uncertain int
 }
 
 // ProcessPayoutSubmissions forwards approved payouts — requests an admin moved
 // to 'processing' that have no provider reference yet — to the configured
-// executor and persists the returned reference. A submission error reverses
+// executor and persists the returned reference. A definite rejection reverses
 // the payout through FailPayout so the wallet is never left debited for a
-// payout that never reached a provider.
+// payout that never reached a provider. An uncertain outcome (the provider may
+// have processed it) holds the payout in flight instead: reversing there could
+// pay twice, and the next pass resubmits with the same reference, which
+// providers must honor as the idempotency key.
 func (l *Ledger) ProcessPayoutSubmissions(ctx context.Context, limit int32) (PayoutProcessResult, error) {
 	if l.exec == nil {
 		return PayoutProcessResult{}, ErrExecutorUnavailable
@@ -385,6 +392,10 @@ func (l *Ledger) ProcessPayoutSubmissions(ctx context.Context, limit int32) (Pay
 	for _, req := range requests {
 		submission, submitErr := l.exec.Submit(req.Method, req.AmountCents, req.DriverID, req.ID.String())
 		if submitErr != nil {
+			if errors.Is(submitErr, ErrSubmitUncertain) {
+				result.Uncertain++
+				continue
+			}
 			reason := "payout submission failed: " + submitErr.Error()
 			if _, failErr := l.FailPayout(ctx, req.ID, reason); failErr == nil {
 				result.Failed++

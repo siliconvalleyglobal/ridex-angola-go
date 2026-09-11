@@ -110,6 +110,13 @@ func canonicalStatus(status string) (string, error) {
 	}
 }
 
+// uncertain wraps err as an uncertain submission outcome: the provider may
+// have received and processed the payout, so the ledger must hold it in
+// flight rather than reverse.
+func uncertain(err error) error {
+	return fmt.Errorf("%w: %v", payouts.ErrSubmitUncertain, err)
+}
+
 // Submit initiates an external payout through the provider's REST API.
 // The boundary carries no context, mirroring payouts.Executor: the client
 // timeout caps the call instead.
@@ -136,14 +143,14 @@ func (e *HTTPExecutor) Submit(method string, amountCents int64, driverID uuid.UU
 
 	var provider providerPayout
 	if err := json.Unmarshal(body, &provider); err != nil {
-		return payouts.Submission{}, fmt.Errorf("decode provider payout response: %w", err)
+		return payouts.Submission{}, uncertain(fmt.Errorf("decode provider payout response: %w", err))
 	}
 	if strings.TrimSpace(provider.Reference) == "" {
-		return payouts.Submission{}, fmt.Errorf("provider payout response has no reference: %s", string(body))
+		return payouts.Submission{}, uncertain(fmt.Errorf("provider payout response has no reference: %s", string(body)))
 	}
 	status, err := canonicalStatus(provider.Status)
 	if err != nil {
-		return payouts.Submission{}, err
+		return payouts.Submission{}, uncertain(err)
 	}
 	return payouts.Submission{Reference: provider.Reference, Status: status, Message: provider.Message}, nil
 }
@@ -193,16 +200,23 @@ func (e *HTTPExecutor) call(ctx context.Context, method, endpoint string, payloa
 
 	resp, err := e.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("execute provider payout request: %w", err)
+		// Transport failures (timeout, connection reset) cannot prove the
+		// provider never processed the payout.
+		return nil, uncertain(fmt.Errorf("execute provider payout request: %w", err))
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxPayoutResponseBody))
 	if err != nil {
-		return nil, fmt.Errorf("read provider payout response: %w", err)
+		return nil, uncertain(fmt.Errorf("read provider payout response: %w", err))
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("provider payout API error %d: %s", resp.StatusCode, string(body))
+		apiErr := fmt.Errorf("provider payout API error %d: %s", resp.StatusCode, string(body))
+		if resp.StatusCode >= 500 {
+			// A 5xx may have followed a processed submission.
+			return nil, uncertain(apiErr)
+		}
+		return nil, apiErr
 	}
 	return body, nil
 }

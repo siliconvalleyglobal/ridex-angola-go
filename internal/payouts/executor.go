@@ -14,13 +14,23 @@ import (
 // caller polls Status afterwards and only then settles or reverses the ledger.
 type Executor interface {
 	// Submit initiates an external payout of amountCents to the driver through
-	// the given method. reference is the payout_requests row id the provider
-	// should echo back.
+	// the given method. reference is the payout_requests row id and the
+	// provider must honor it as the submission's idempotency key: resubmitting
+	// with the same reference must never pay twice. Errors wrapping
+	// ErrSubmitUncertain leave the outcome unknown (the provider may have
+	// processed the payout); only definite rejections may reverse the wallet.
 	Submit(method string, amountCents int64, driverID uuid.UUID, reference string) (Submission, error)
 	// Status returns the current external state for a previously submitted
 	// payout. Polling is only meaningful for references the executor issued.
 	Status(reference string) (StatusInfo, error)
 }
+
+// ErrSubmitUncertain marks a Submit failure where the provider may already
+// have processed the payout (lost response, 5xx, unparseable reply). The
+// ledger holds the payout in flight and retries with the same reference —
+// which providers must treat as the idempotency key — instead of reversing,
+// because a reversal while the transfer is actually in flight would pay twice.
+var ErrSubmitUncertain = errors.New("payout submission outcome is uncertain")
 
 // Submission is the immediate result of Submit.
 type Submission struct {

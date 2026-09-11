@@ -37,6 +37,13 @@ func (f *DeliveryFactory) Create(
 		f.logger.Info("creating APNs delivery provider")
 		return NewAPNSDelivery(apnsTeamID, apnsKeyID, apnsBundleID, apnsPrivateKey, apnsProduction)
 	case "sms":
+		// Real OTP providers (Termii, Africa's Talking, Twilio) also expose a
+		// raw SendSMS transport: prefer the direct adapter so notification
+		// text is delivered verbatim instead of re-framed as an OTP template.
+		if sender, ok := otpDelivery.(SMSSender); ok {
+			f.logger.Info("creating direct SMS delivery provider", zap.String("transport", smsProvider))
+			return NewSMSDelivery(sender, smsProvider)
+		}
 		f.logger.Info("creating SMS fallback delivery provider")
 		return NewSMSFallbackDelivery(otpDelivery, smsProvider)
 	case "noop", "", "none":

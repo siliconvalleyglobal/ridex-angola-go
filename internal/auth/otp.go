@@ -16,6 +16,13 @@ type OTPDelivery interface {
 	DeliverOTP(ctx context.Context, phone, purpose, code string) error
 }
 
+// SMSSender is implemented by delivery providers that can also transmit
+// pre-formatted SMS text without OTP framing. Localized OTP messages and the
+// notification SMS adapters use it so their text is delivered verbatim.
+type SMSSender interface {
+	SendSMS(ctx context.Context, phone, message string) error
+}
+
 // NoopOTPDelivery records no delivery and returns an explicit unavailable
 // error. It never claims that an SMS was sent.
 type NoopOTPDelivery struct{}

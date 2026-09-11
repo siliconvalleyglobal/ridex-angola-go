@@ -315,3 +315,85 @@ func TestTwilioDelivery_FormatMessage(t *testing.T) {
 		}
 	}
 }
+
+func TestTermiiDelivery_SendSMSRawMessage(t *testing.T) {
+	var gotMessage string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMessage = r.FormValue("message")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{"status": "success"})
+	}))
+	defer server.Close()
+
+	delivery := &TermiiDelivery{APIKey: "test_api_key", SenderID: "RideXAO", BaseURL: server.URL}
+	if err := delivery.SendSMS(context.Background(), "+244912123456", "Sua corrida chegou ao local"); err != nil {
+		t.Fatalf("SendSMS: %v", err)
+	}
+	if gotMessage != "Sua corrida chegou ao local" {
+		t.Fatalf("message = %q, want raw text without OTP framing", gotMessage)
+	}
+}
+
+func TestTermiiDelivery_SendSMS_MissingAPIKey(t *testing.T) {
+	delivery := &TermiiDelivery{APIKey: "", SenderID: "RideXAO"}
+	err := delivery.SendSMS(context.Background(), "+244912123456", "hello")
+	if err == nil || !strings.Contains(err.Error(), "not configured") {
+		t.Fatalf("err = %v, want not configured", err)
+	}
+}
+
+func TestAfricaTalkingDelivery_SendSMSRawMessage(t *testing.T) {
+	var gotPayload map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		username, password, ok := r.BasicAuth()
+		if !ok || username != "test_username" || password != "test_api_key" {
+			t.Errorf("unexpected basic auth credentials")
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
+			t.Errorf("decode request body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"SMSMessageData": map[string]interface{}{
+				"Message":    "Success.",
+				"Recipients": []map[string]interface{}{{"status": "Success"}},
+			},
+		})
+	}))
+	defer server.Close()
+
+	delivery := &AfricaTalkingDelivery{APIKey: "test_api_key", Username: "test_username", BaseURL: server.URL}
+	if err := delivery.SendSMS(context.Background(), "+244912123456", "Sua corrida chegou ao local"); err != nil {
+		t.Fatalf("SendSMS: %v", err)
+	}
+	if gotPayload["to"] != "244912123456" {
+		t.Fatalf("to = %q, want 244912123456", gotPayload["to"])
+	}
+	if gotPayload["message"] != "Sua corrida chegou ao local" {
+		t.Fatalf("message = %q, want raw text without OTP framing", gotPayload["message"])
+	}
+}
+
+func TestTwilioDelivery_SendSMSRawMessage(t *testing.T) {
+	var gotBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		username, password, ok := r.BasicAuth()
+		if !ok || username != "ACtest_sid" || password != "test_token" {
+			t.Errorf("unexpected basic auth credentials")
+		}
+		gotBody = r.FormValue("Body")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{"sid": "SM_test"})
+	}))
+	defer server.Close()
+
+	delivery := &TwilioDelivery{AccountSID: "ACtest_sid", AuthToken: "test_token", From: "+24499999999", BaseURL: server.URL}
+	if err := delivery.SendSMS(context.Background(), "+244912123456", "Sua corrida chegou ao local"); err != nil {
+		t.Fatalf("SendSMS: %v", err)
+	}
+	if gotBody != "Sua corrida chegou ao local" {
+		t.Fatalf("body = %q, want raw text without OTP framing", gotBody)
+	}
+}

@@ -31,8 +31,16 @@ func (d *TermiiDelivery) DeliverOTP(ctx context.Context, phone, purpose, code st
 	if d.APIKey == "" {
 		return fmt.Errorf("%w: Termii API key not configured", ErrOTPDeliveryNotConfigured)
 	}
+	return d.SendSMS(ctx, phone, d.FormatMessage(purpose, code))
+}
 
-	message := d.FormatMessage(purpose, code)
+// SendSMS delivers a pre-formatted SMS message through the Termii API. It is
+// the transport primitive behind DeliverOTP and the notification SMS
+// adapters; the message is transmitted verbatim.
+func (d *TermiiDelivery) SendSMS(ctx context.Context, phone, message string) error {
+	if d.APIKey == "" {
+		return fmt.Errorf("%w: Termii API key not configured", ErrOTPDeliveryNotConfigured)
+	}
 
 	payload := url.Values{
 		"api_key":   {d.APIKey},
@@ -112,11 +120,19 @@ func (d *AfricaTalkingDelivery) DeliverOTP(ctx context.Context, phone, purpose, 
 	if d.APIKey == "" || d.Username == "" {
 		return fmt.Errorf("%w: Africa's Talking credentials not configured", ErrOTPDeliveryNotConfigured)
 	}
+	return d.SendSMS(ctx, phone, d.FormatMessage(purpose, code))
+}
+
+// SendSMS delivers a pre-formatted SMS message through the Africa's Talking
+// API. It is the transport primitive behind DeliverOTP and the notification
+// SMS adapters; the message is transmitted verbatim.
+func (d *AfricaTalkingDelivery) SendSMS(ctx context.Context, phone, message string) error {
+	if d.APIKey == "" || d.Username == "" {
+		return fmt.Errorf("%w: Africa's Talking credentials not configured", ErrOTPDeliveryNotConfigured)
+	}
 
 	phone = strings.ReplaceAll(phone, "+", "")
 	phone = strings.ReplaceAll(phone, " ", "")
-
-	message := d.FormatMessage(purpose, code)
 
 	payload := map[string]string{
 		"to":      phone,
@@ -207,8 +223,16 @@ func (d *TwilioDelivery) DeliverOTP(ctx context.Context, phone, purpose, code st
 	if d.AccountSID == "" || d.AuthToken == "" {
 		return fmt.Errorf("%w: Twilio credentials not configured", ErrOTPDeliveryNotConfigured)
 	}
+	return d.SendSMS(ctx, phone, d.FormatMessage(purpose, code))
+}
 
-	message := d.FormatMessage(purpose, code)
+// SendSMS delivers a pre-formatted SMS message through the Twilio API. It is
+// the transport primitive behind DeliverOTP and the notification SMS
+// adapters; the message is transmitted verbatim.
+func (d *TwilioDelivery) SendSMS(ctx context.Context, phone, message string) error {
+	if d.AccountSID == "" || d.AuthToken == "" {
+		return fmt.Errorf("%w: Twilio credentials not configured", ErrOTPDeliveryNotConfigured)
+	}
 
 	payload := url.Values{
 		"To":   {phone},

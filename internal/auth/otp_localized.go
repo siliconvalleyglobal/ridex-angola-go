@@ -23,9 +23,21 @@ func NewLocalizedOTPDelivery(delivery OTPDelivery) *LocalizedOTPDelivery {
 }
 
 // DeliverOTP sends a localized OTP message via the wrapped delivery provider.
+// The formatted message is transmitted verbatim when the wrapped provider
+// exposes a raw SMS transport (SendSMS); the legacy DeliverOTP path remains
+// for simple mocks so the message is never re-framed as an OTP template.
 func (d *LocalizedOTPDelivery) DeliverOTP(ctx context.Context, phone, purpose, code string) error {
-	message := d.formatMessage(purpose, code)
-	// Use "sms" as purpose since we're sending the pre-formatted message
+	return d.SendSMS(ctx, phone, d.formatMessage(purpose, code))
+}
+
+// SendSMS delivers a pre-formatted SMS message through the wrapped provider
+// without any OTP framing.
+func (d *LocalizedOTPDelivery) SendSMS(ctx context.Context, phone, message string) error {
+	if sender, ok := d.delivery.(SMSSender); ok {
+		return sender.SendSMS(ctx, phone, message)
+	}
+	// Fallback for providers without a raw SMS primitive: DeliverOTP with the
+	// "sms" purpose transmits the pre-formatted message.
 	return d.delivery.DeliverOTP(ctx, phone, "sms", message)
 }
 

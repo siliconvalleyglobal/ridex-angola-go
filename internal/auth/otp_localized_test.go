@@ -93,3 +93,33 @@ func TestLocalizedOTPDelivery_UnknownPurpose(t *testing.T) {
 		t.Errorf("DeliverOTP() message = %q, want %q", mock.deliveredMessage, expected)
 	}
 }
+
+// smsCapturingOTP implements both DeliverOTP and SendSMS, mirroring the real
+// Termii/Africa's Talking/Twilio providers.
+type smsCapturingOTP struct {
+	mockOTPDelivery
+	sentPhone   string
+	sentMessage string
+}
+
+func (s *smsCapturingOTP) SendSMS(_ context.Context, phone, message string) error {
+	s.sentPhone = phone
+	s.sentMessage = message
+	return nil
+}
+
+func TestLocalizedOTPDelivery_UsesRawSMSWithoutOTPWrap(t *testing.T) {
+	inner := &smsCapturingOTP{}
+	delivery := NewLocalizedOTPDelivery(inner)
+
+	if err := delivery.DeliverOTP(context.Background(), "922123456", "login", "123456"); err != nil {
+		t.Fatalf("DeliverOTP() error = %v", err)
+	}
+	expected := "Código OTP para login RideX Angola: 123456. Valido por 5 minutos."
+	if inner.sentMessage != expected {
+		t.Fatalf("sent message = %q, want %q (verbatim, no re-framing)", inner.sentMessage, expected)
+	}
+	if inner.deliveredPurpose != "" || inner.deliveredMessage != "" {
+		t.Fatalf("inner DeliverOTP called with purpose %q message %q; want raw SendSMS path", inner.deliveredPurpose, inner.deliveredMessage)
+	}
+}

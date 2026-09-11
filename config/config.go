@@ -86,8 +86,15 @@ type Config struct {
 	PaymentWebhookSecret string
 
 	// Payout execution. "manual" uses the in-process executor (submissions are
-	// recorded; no real money moves). Empty/"none" disables the worker jobs.
+	// recorded; no real money moves). "http" transmits to a banking provider
+	// over the documented REST contract (requires PAYOUT_EXECUTOR_URL and
+	// PAYOUT_EXECUTOR_API_KEY). Empty/"none" disables the worker jobs.
 	PayoutExecutor string
+	// PayoutExecutorURL is the banking provider's API root for the "http"
+	// executor (e.g. https://api.bank.ao).
+	PayoutExecutorURL string
+	// PayoutExecutorAPIKey is the bearer token for the "http" executor.
+	PayoutExecutorAPIKey string
 
 	// AppyPay
 	AppyPayClientID     string
@@ -195,6 +202,8 @@ func Load() (*Config, error) {
 	c.PaymentProvider = viper.GetString("PAYMENT_PROVIDER")
 	c.PaymentWebhookSecret = viper.GetString("PAYMENT_WEBHOOK_SECRET")
 	c.PayoutExecutor = viper.GetString("PAYOUT_EXECUTOR")
+	c.PayoutExecutorURL = viper.GetString("PAYOUT_EXECUTOR_URL")
+	c.PayoutExecutorAPIKey = viper.GetString("PAYOUT_EXECUTOR_API_KEY")
 
 	c.AppyPayClientID = viper.GetString("APPYPAY_CLIENT_ID")
 	c.AppyPayClientSecret = viper.GetString("APPYPAY_CLIENT_SECRET")
@@ -262,6 +271,9 @@ func setDefaults() {
 	viper.SetDefault("TERMII_SENDER_ID", "RideX")
 	viper.SetDefault("PAYMENT_PROVIDER", "appypay")
 	viper.SetDefault("PAYMENT_WEBHOOK_SECRET", "")
+	viper.SetDefault("PAYOUT_EXECUTOR", "")
+	viper.SetDefault("PAYOUT_EXECUTOR_URL", "")
+	viper.SetDefault("PAYOUT_EXECUTOR_API_KEY", "")
 	viper.SetDefault("APPYPAY_BASE_URL", "https://sandbox.appypay.co")
 	viper.SetDefault("APPYPAY_GPO_ENABLED", true)
 	viper.SetDefault("VPOS_BASE_URL", "https://api.vpos.ao")
@@ -308,8 +320,20 @@ func (c *Config) Validate() error {
 		(isUnsafeSecret(c.PaymentWebhookSecret) || len([]byte(c.PaymentWebhookSecret)) < 32) {
 		return fmt.Errorf("PAYMENT_WEBHOOK_SECRET must be configured with at least 32 bytes when payments are enabled")
 	}
-	if payoutExecutor := strings.ToLower(strings.TrimSpace(c.PayoutExecutor)); payoutExecutor != "" && payoutExecutor != "none" && payoutExecutor != "manual" {
-		return fmt.Errorf("PAYOUT_EXECUTOR must be 'manual' when set (got %q)", payoutExecutor)
+	payoutExecutor := strings.ToLower(strings.TrimSpace(c.PayoutExecutor))
+	if payoutExecutor != "" && payoutExecutor != "none" && payoutExecutor != "manual" && payoutExecutor != "http" {
+		return fmt.Errorf("PAYOUT_EXECUTOR must be 'manual' or 'http' when set (got %q)", payoutExecutor)
+	}
+	if payoutExecutor == "http" {
+		if strings.TrimSpace(c.PayoutExecutorURL) == "" {
+			return fmt.Errorf("PAYOUT_EXECUTOR_URL is required when PAYOUT_EXECUTOR is 'http'")
+		}
+		if payoutURL, err := url.Parse(c.PayoutExecutorURL); err != nil || payoutURL.Scheme != "https" {
+			return fmt.Errorf("PAYOUT_EXECUTOR_URL must be a valid https URL when PAYOUT_EXECUTOR is 'http' (got %q)", c.PayoutExecutorURL)
+		}
+		if isUnsafeSecret(c.PayoutExecutorAPIKey) || len([]byte(c.PayoutExecutorAPIKey)) < 32 {
+			return fmt.Errorf("PAYOUT_EXECUTOR_API_KEY must be a random secret of at least 32 bytes when PAYOUT_EXECUTOR is 'http'")
+		}
 	}
 	if c.CORSAllowCredentials {
 		for _, origin := range c.CORSAllowedOrigins {

@@ -14,6 +14,7 @@ import (
 	"github.com/ridex/ridex-angola/internal/payment"
 	"github.com/ridex/ridex-angola/internal/payment/providers"
 	"github.com/ridex/ridex-angola/internal/payouts"
+	payoutproviders "github.com/ridex/ridex-angola/internal/payouts/providers"
 	"go.uber.org/zap"
 )
 
@@ -87,11 +88,26 @@ func main() {
 	// movement); any real banking/Multicaixa provider plugs in here later.
 	var payoutLedger *payouts.Ledger
 	executorName := strings.ToLower(strings.TrimSpace(cfg.PayoutExecutor))
-	if executorName == "manual" {
+	switch executorName {
+	case "manual":
 		payoutLedger = payouts.NewLedgerWithTx(queries, pool.Begin).WithExecutor(payouts.NewManualExecutor())
 		logger.Info("payout execution enabled", zap.String("executor", executorName),
 			zap.Duration("interval", payoutExecutionInterval))
-	} else if executorName != "" && executorName != "none" {
+	case "http":
+		executor := payoutproviders.NewHTTPExecutor(cfg.PayoutExecutorURL, cfg.PayoutExecutorAPIKey, 0)
+		if !executor.IsEnabled() {
+			logger.Warn("payout execution disabled: http executor missing credentials",
+				zap.Bool("hasURL", strings.TrimSpace(cfg.PayoutExecutorURL) != ""),
+				zap.Bool("hasAPIKey", strings.TrimSpace(cfg.PayoutExecutorAPIKey) != ""))
+			break
+		}
+		payoutLedger = payouts.NewLedgerWithTx(queries, pool.Begin).WithExecutor(executor)
+		logger.Info("payout execution enabled", zap.String("executor", executorName),
+			zap.String("url", cfg.PayoutExecutorURL),
+			zap.Duration("interval", payoutExecutionInterval))
+	case "", "none":
+		// Payout execution disabled: admins settle payouts through the API.
+	default:
 		logger.Warn("payout execution disabled: unknown executor", zap.String("executor", executorName))
 	}
 

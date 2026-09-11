@@ -252,6 +252,15 @@ type Querier interface {
 	MarkRideNoShow(ctx context.Context, arg MarkRideNoShowParams) (Ride, error)
 	MarkSAFTInvoicePaid(ctx context.Context, id uuid.UUID) (SaftInvoice, error)
 	MarkVerificationCodeVerified(ctx context.Context, id uuid.UUID) (VerificationCode, error)
+	// Payment analytics for the admin dashboard. All queries are windowed on a
+	// single "since" timestamp so the HTTP layer can clamp the window (days).
+	// Counts and volumes for one status window. FILTER keeps each metric in one
+	// pass; ::bigint casts keep the JSON layer on plain int64s.
+	PaymentAnalyticsSummary(ctx context.Context, createdAt pgtype.Timestamptz) (PaymentAnalyticsSummaryRow, error)
+	// Per-day completed volume and refunds for trend charts.
+	PaymentDailyVolume(ctx context.Context, createdAt pgtype.Timestamptz) ([]PaymentDailyVolumeRow, error)
+	// Per-provider totals so a misbehaving provider is visible in one glance.
+	PaymentProviderBreakdown(ctx context.Context, createdAt pgtype.Timestamptz) ([]PaymentProviderBreakdownRow, error)
 	// Automatic reassignment: when the assigned driver cancels a not-yet-started
 	// ride, the ride returns to the open pool so other drivers can bid on it.
 	ReassignRideToRequested(ctx context.Context, arg ReassignRideToRequestedParams) (Ride, error)

@@ -321,6 +321,7 @@ func main() {
 			protected.GET("/admin/payments/:paymentId", auth.RequireRole("admin"), dashboardHandler.AdminPaymentAudit)
 			protected.GET("/admin/payments/:paymentId/audit", auth.RequireRole("admin"), dashboardHandler.AdminPaymentAudit)
 			protected.POST("/admin/payments/:paymentId/refund", auth.RequireRole("admin"), paymentHandler.Refund)
+			protected.GET("/admin/analytics/payments", auth.RequireRole("admin"), payment.NewAnalyticsHandler(payment.NewAnalytics(q)).Report)
 			protected.POST("/admin/reconciliation/payments", auth.RequireRole("admin"), paymentHandler.Reconcile)
 			protected.GET("/admin/payouts", auth.RequireRole("admin"), payoutHandler.AdminPayoutQueue)
 			protected.POST("/admin/payouts/:payoutId/approve", auth.RequireRole("admin"), payoutHandler.ApprovePayout)

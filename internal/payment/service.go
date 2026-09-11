@@ -51,6 +51,7 @@ type Service struct {
 	charger  Charger
 	refunder Refunder
 	poller   StatusPoller
+	fraud    *Fraud
 }
 
 func NewService(store Store) *Service { return &Service{store: store} }
@@ -74,6 +75,15 @@ func (s *Service) WithRefunder(refunder Refunder) *Service {
 // reconciliation job to resolve charges whose webhooks were missed.
 func (s *Service) WithStatusPoller(poller StatusPoller) *Service {
 	s.poller = poller
+	return s
+}
+
+// WithFraud attaches an optional fraud evaluator. A nil evaluator keeps
+// charge creation ungated (ledger-only behavior). When attached, genuinely
+// new intents are evaluated before a provider intent reserves money, and a
+// failure to read the signals fails closed.
+func (s *Service) WithFraud(fraud *Fraud) *Service {
+	s.fraud = fraud
 	return s
 }
 
@@ -147,6 +157,16 @@ func (s *Service) createIntent(ctx context.Context, in CreateIntentInput) (db.Pa
 		}
 		if !errors.Is(lookupErr, pgx.ErrNoRows) {
 			return db.PaymentCharge{}, false, fmt.Errorf("load payment intent idempotency key: %w", lookupErr)
+		}
+	}
+
+	// Fraud signals gate genuinely new intents only: the idempotency replay
+	// above already returned for retries, so a legitimate retry is never
+	// evaluated as fraud. A failure to read the signals fails closed — the
+	// charge is not created and no provider money is reserved.
+	if s.fraud != nil {
+		if _, err := s.fraud.Evaluate(ctx, in.RiderID, amount.Int.Int64()); err != nil {
+			return db.PaymentCharge{}, false, err
 		}
 	}
 

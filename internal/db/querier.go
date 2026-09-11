@@ -162,6 +162,11 @@ type Querier interface {
 	GetRideEventsPage(ctx context.Context, arg GetRideEventsPageParams) ([]RideEvent, error)
 	GetRideReviews(ctx context.Context, rideID uuid.UUID) ([]RideReview, error)
 	GetRideShareByTokenHash(ctx context.Context, tokenHash []byte) (GetRideShareByTokenHashRow, error)
+	// Fraud signal probe for charge creation: one pass over the rider's recent
+	// charges. $2 is the outer scan bound (the earlier of the two evaluation
+	// windows); $3/$4 are the velocity and duplicate sub-windows evaluated with
+	// FILTER inside the scan, so both signals cost a single scan.
+	GetRiderChargeSignals(ctx context.Context, arg GetRiderChargeSignalsParams) (GetRiderChargeSignalsRow, error)
 	GetRidesByDriver(ctx context.Context, driverID pgtype.UUID) ([]Ride, error)
 	GetRidesByDriverPage(ctx context.Context, arg GetRidesByDriverPageParams) ([]Ride, error)
 	GetRidesByRider(ctx context.Context, riderID uuid.UUID) ([]Ride, error)

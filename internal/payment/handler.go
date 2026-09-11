@@ -182,6 +182,8 @@ func (h *Handler) CreateIntent(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, ErrIdempotencyConflict):
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case errors.Is(err, ErrFraudVelocityExceeded), errors.Is(err, ErrFraudDuplicateAmount):
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	case err != nil:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create payment intent"})
 	default:

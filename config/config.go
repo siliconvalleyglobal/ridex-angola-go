@@ -99,6 +99,15 @@ type Config struct {
 	// raw body); the callback endpoint fails closed without it.
 	PayoutWebhookSecret string
 
+	// Fraud signals for charge creation: a rider exceeding the velocity limit
+	// (charges inside the window) or creating too many identical-amount
+	// charges is rejected before a provider intent reserves money. Windows
+	// are minutes; limits are charge counts inside the window.
+	FraudVelocityWindow  int
+	FraudVelocityLimit   int
+	FraudDuplicateWindow int
+	FraudDuplicateLimit  int
+
 	// AppyPay
 	AppyPayClientID     string
 	AppyPayClientSecret string
@@ -208,6 +217,10 @@ func Load() (*Config, error) {
 	c.PayoutExecutorURL = viper.GetString("PAYOUT_EXECUTOR_URL")
 	c.PayoutExecutorAPIKey = viper.GetString("PAYOUT_EXECUTOR_API_KEY")
 	c.PayoutWebhookSecret = viper.GetString("PAYOUT_WEBHOOK_SECRET")
+	c.FraudVelocityWindow = viper.GetInt("FRAUD_VELOCITY_WINDOW")
+	c.FraudVelocityLimit = viper.GetInt("FRAUD_VELOCITY_LIMIT")
+	c.FraudDuplicateWindow = viper.GetInt("FRAUD_DUPLICATE_WINDOW")
+	c.FraudDuplicateLimit = viper.GetInt("FRAUD_DUPLICATE_LIMIT")
 
 	c.AppyPayClientID = viper.GetString("APPYPAY_CLIENT_ID")
 	c.AppyPayClientSecret = viper.GetString("APPYPAY_CLIENT_SECRET")
@@ -279,6 +292,10 @@ func setDefaults() {
 	viper.SetDefault("PAYOUT_EXECUTOR_URL", "")
 	viper.SetDefault("PAYOUT_EXECUTOR_API_KEY", "")
 	viper.SetDefault("PAYOUT_WEBHOOK_SECRET", "")
+	viper.SetDefault("FRAUD_VELOCITY_WINDOW", 60)
+	viper.SetDefault("FRAUD_VELOCITY_LIMIT", 10)
+	viper.SetDefault("FRAUD_DUPLICATE_WINDOW", 30)
+	viper.SetDefault("FRAUD_DUPLICATE_LIMIT", 2)
 	viper.SetDefault("APPYPAY_BASE_URL", "https://sandbox.appypay.co")
 	viper.SetDefault("APPYPAY_GPO_ENABLED", true)
 	viper.SetDefault("VPOS_BASE_URL", "https://api.vpos.ao")
@@ -328,6 +345,17 @@ func (c *Config) Validate() error {
 	payoutExecutor := strings.ToLower(strings.TrimSpace(c.PayoutExecutor))
 	if payoutExecutor != "" && payoutExecutor != "none" && payoutExecutor != "manual" && payoutExecutor != "http" {
 		return fmt.Errorf("PAYOUT_EXECUTOR must be 'manual' or 'http' when set (got %q)", payoutExecutor)
+	}
+	// Fraud signals are opt-in: all four fields must be set for the gate to
+	// activate; zero values leave charge creation ungated (ledger-only).
+	if c.FraudVelocityWindow > 0 || c.FraudVelocityLimit > 0 ||
+		c.FraudDuplicateWindow > 0 || c.FraudDuplicateLimit > 0 {
+		if c.FraudVelocityWindow < 1 || c.FraudVelocityLimit < 1 {
+			return fmt.Errorf("FRAUD_VELOCITY_WINDOW and FRAUD_VELOCITY_LIMIT must be at least 1 when fraud is enabled")
+		}
+		if c.FraudDuplicateWindow < 1 || c.FraudDuplicateLimit < 1 {
+			return fmt.Errorf("FRAUD_DUPLICATE_WINDOW and FRAUD_DUPLICATE_LIMIT must be at least 1 when fraud is enabled")
+		}
 	}
 	if payoutExecutor == "http" {
 		if strings.TrimSpace(c.PayoutExecutorURL) == "" {

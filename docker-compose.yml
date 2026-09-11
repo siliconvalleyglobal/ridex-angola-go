@@ -1,0 +1,130 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ridex
+      POSTGRES_PASSWORD: ridex_secret
+      POSTGRES_DB: ridex
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ridex -d ridex"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ridex-net
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    ports:
+      - "6379:6379"
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ridex-net
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - SERVER_PORT=8080
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=ridex
+      - DB_PASSWORD=ridex_secret
+      - DB_NAME=ridex
+      - DB_SSL_MODE=disable
+      - VALKEY_HOST=valkey
+      - VALKEY_PORT=6379
+      - JWT_ACCESS_SECRET=dev-access-secret-please-change
+      - JWT_REFRESH_SECRET=dev-refresh-secret-please-change
+      - SMS_PROVIDER=termii
+      - LOG_LEVEL=debug
+      - LOG_FORMAT=console
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+      - go-cache:/root/.cache/go-build
+    networks:
+      - ridex-net
+
+  matching:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=ridex
+      - DB_PASSWORD=ridex_secret
+      - DB_NAME=ridex
+      - DB_SSL_MODE=disable
+      - VALKEY_HOST=valkey
+      - VALKEY_PORT=6379
+      - LOG_LEVEL=debug
+      - LOG_FORMAT=console
+      - GRPC_PORT=9090
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+      - go-cache:/root/.cache/go-build
+    networks:
+      - ridex-net
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=ridex
+      - DB_PASSWORD=ridex_secret
+      - DB_NAME=ridex
+      - DB_SSL_MODE=disable
+      - VALKEY_HOST=valkey
+      - VALKEY_PORT=6379
+      - LOG_LEVEL=debug
+      - LOG_FORMAT=console
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+      - go-cache:/root/.cache/go-build
+    networks:
+      - ridex-net
+
+networks:
+  ridex-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  go-cache:

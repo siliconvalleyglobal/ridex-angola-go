@@ -70,9 +70,9 @@ type TokenStore interface {
 // InProcessService persists notifications without making external delivery
 // calls. It is safe to share between HTTP handlers and domain services.
 type InProcessService struct {
-	store   Store
-	pusher  Pusher
-	tokens  TokenStore
+	store  Store
+	pusher Pusher
+	tokens TokenStore
 }
 
 func NewService(store Store) *InProcessService {

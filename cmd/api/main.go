@@ -328,6 +328,7 @@ func main() {
 			protected.POST("/admin/payouts/:payoutId/fail", auth.RequireRole("admin"), payoutHandler.FailPayout)
 			protected.GET("/drivers/dashboard", auth.RequireRole("driver"), dashboardHandler.DriverSummary)
 			protected.GET("/drivers/earnings", auth.RequireRole("driver"), dashboardHandler.DriverEarnings)
+			protected.GET("/drivers/transactions", auth.RequireRole("driver"), dashboardHandler.DriverTransactions)
 			protected.GET("/drivers/wallet", auth.RequireRole("driver"), payoutHandler.Wallet)
 			protected.GET("/drivers/wallet/transactions", auth.RequireRole("driver"), payoutHandler.WalletTransactions)
 			protected.POST("/drivers/payouts", auth.RequireRole("driver"), payoutHandler.RequestWithdrawal)

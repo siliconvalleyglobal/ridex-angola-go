@@ -11,9 +11,9 @@ type AuditLogger interface {
 
 // PayoutEvent is a single, immutable lifecycle event for a payout request.
 type PayoutEvent struct {
-	PayoutID   string
-	DriverID   string
-	ActorID    string
+	PayoutID    string
+	DriverID    string
+	ActorID     string
 	AmountCents int64
 	Status      string
 	Method      string

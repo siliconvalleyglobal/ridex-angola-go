@@ -244,4 +244,3 @@ func PayoutRequestJSON(req db.PayoutRequest) gin.H {
 		"processedAt":   req.ProcessedAt,
 	}
 }
-

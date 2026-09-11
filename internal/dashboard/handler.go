@@ -79,6 +79,77 @@ func (h *Handler) DriverSummary(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "failed to load driver earnings"})
 		return
 	}
+
+	// Aggregation: active ride + recent rides (same source as the rider dashboard).
+	var activeRide any
+	recentRides := []gin.H{}
+	rides, err := h.q.GetRidesByDriver(c.Request.Context(), pgtype.UUID{Bytes: id, Valid: true})
+	if err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			c.JSON(500, gin.H{"error": "failed to load driver rides"})
+			return
+		}
+	} else {
+		recentRides = ridesJSON(rides)
+		if len(rides) > 20 {
+			recentRides = recentRides[:20]
+		}
+		for i := range rides {
+			switch rides[i].Status {
+			case "requested", "matched", "driver_arriving", "in_progress":
+				activeRide = ridesJSON(rides[i : i+1])[0]
+				break
+			}
+			if activeRide != nil {
+				break
+			}
+		}
+	}
+
+	// Wallet snapshot — absent wallets serialize to null rather than erroring.
+	var wallet any
+	w, walletErr := h.q.GetDriverWallet(c.Request.Context(), id)
+	if walletErr == nil {
+		wallet = gin.H{
+			"balanceCents":     w.BalanceCents,
+			"pendingCents":     w.PendingCents,
+			"totalEarnedCents": w.TotalEarnedCents,
+			"totalPaidCents":   w.TotalPaidCents,
+			"currency":         w.Currency,
+			"lastPayoutAt":     w.LastPayoutAt,
+		}
+	} else if !errors.Is(walletErr, pgx.ErrNoRows) {
+		c.JSON(500, gin.H{"error": "failed to load wallet"})
+		return
+	}
+
+	// Active payout queue — same source as /drivers/payouts.
+	queue, err := h.q.GetActivePayoutRequestsByDriver(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(500, gin.H{"error": "failed to load payout queue"})
+		return
+	}
+	queueJSON := make([]gin.H, 0, len(queue))
+	for _, p := range queue {
+		queueJSON = append(queueJSON, gin.H{
+			"id": p.ID, "amountCents": p.AmountCents, "method": p.Method,
+			"status": p.Status, "requestedAt": p.RequestedAt,
+		})
+	}
+
+	// Loyalty summary — absent balances serialize to null.
+	var loyalty any
+	lp, loyaltyErr := h.q.GetLoyaltyBalance(c.Request.Context(), id)
+	if loyaltyErr == nil {
+		loyalty = gin.H{
+			"balance": lp.Balance, "totalEarned": lp.TotalEarned,
+			"totalRedeemed": lp.TotalRedeemed, "tier": lp.Tier,
+		}
+	} else if !errors.Is(loyaltyErr, pgx.ErrNoRows) {
+		c.JSON(500, gin.H{"error": "failed to load loyalty"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"online":                availability.IsOnline,
 		"availabilityUpdatedAt": availability.UpdatedAt,
@@ -87,6 +158,11 @@ func (h *Handler) DriverSummary(c *gin.Context) {
 		"earnings":              earningsJSON(earnings),
 		"vehicleProfile":        vehicleProfile,
 		"documentExpiry":        documentExpiry,
+		"activeRide":            activeRide,
+		"recentRides":           recentRides,
+		"wallet":                wallet,
+		"payoutQueue":           queueJSON,
+		"loyalty":               loyalty,
 	})
 }
 
@@ -151,8 +227,57 @@ func (h *Handler) RiderSummary(c *gin.Context) {
 	})
 }
 
-// AdminUsers lists users without exposing password hashes. It is intentionally
-// read-only; status changes go through AdminSetUserStatus below.
+// DriverTransactions returns paginated ride-side transaction history for the
+// driver, mirroring the rider dashboard. Each entry includes the ride summary
+// and any payment charges recorded against it.
+func (h *Handler) DriverTransactions(c *gin.Context) {
+	id, err := uuid.Parse(c.GetString(auth.ContextUserID))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthenticated"})
+		return
+	}
+
+	page, pageSize := parsePagination(c)
+	rides, err := h.q.GetRidesByDriverPage(c.Request.Context(), db.GetRidesByDriverPageParams{
+		DriverID: pgtype.UUID{Bytes: id, Valid: true},
+		Limit:    int32(pageSize + 1),
+		Offset:   int32((page - 1) * pageSize),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load rides"})
+		return
+	}
+
+	hasMore := len(rides) > pageSize
+	if hasMore {
+		rides = rides[:pageSize]
+	}
+
+	transactions := make([]gin.H, 0, len(rides))
+	for _, ride := range rides {
+		charges, err := h.q.GetPaymentChargesByRide(c.Request.Context(), ride.ID)
+		var payments []gin.H
+		if err == nil {
+			payments = paymentJSONList(charges)
+		}
+		transactions = append(transactions, gin.H{
+			"rideId":      ride.ID,
+			"status":      ride.Status,
+			"pickup":      ride.PickupAddress,
+			"destination": ride.DestinationAddress,
+			"fareCents":   ride.AcceptedFareCents,
+			"createdAt":   ride.CreatedAt,
+			"completedAt": ride.CompletedAt,
+			"cancelledAt": ride.CancelledAt,
+			"payments":    payments,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"transactions": transactions,
+		"pagination":   gin.H{"page": page, "pageSize": pageSize, "hasMore": hasMore},
+	})
+}
 func (h *Handler) AdminUsers(c *gin.Context) {
 	p := adminPagination(c)
 	users, err := h.q.ListUsers(c.Request.Context(), db.ListUsersParams{

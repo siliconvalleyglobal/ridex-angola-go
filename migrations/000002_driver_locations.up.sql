@@ -8,7 +8,7 @@ CREATE TABLE driver_locations (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_driver_locations_location ON driver_locations(location);
+CREATE INDEX idx_driver_locations_location ON driver_locations USING gist (location);
 
 -- Only drivers with a recent ping are matchable; stale rows are cleaned by the worker.
 CREATE INDEX idx_driver_locations_updated ON driver_locations(updated_at);

@@ -44,6 +44,7 @@ import (
 	"github.com/ridex/ridex-angola/internal/support"
 	"github.com/ridex/ridex-angola/internal/trust"
 	"github.com/ridex/ridex-angola/internal/zones"
+	"github.com/ridex/ridex-angola/web"
 	"go.uber.org/zap"
 )
 
@@ -195,8 +196,15 @@ func main() {
 
 	// Root welcome
 	r.GET("/", func(c *gin.Context) {
-		c.String(http.StatusOK, "Welcome to Ridex Angola API (Go/Gin)")
+		c.JSON(http.StatusOK, gin.H{
+			"service": "ridex-angola-api",
+			"studio":  "/app",
+			"health":  "/health",
+		})
 	})
+	r.GET("/app", serveStudio)
+	r.GET("/app/", serveStudio)
+	r.GET("/mobile", serveStudio)
 
 	// Health endpoint
 	r.GET("/health", func(c *gin.Context) {
@@ -507,6 +515,11 @@ func main() {
 	}
 
 	logger.Info("server exited")
+}
+
+func serveStudio(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	c.Data(http.StatusOK, "text/html; charset=utf-8", web.IndexHTML())
 }
 
 // zapGinMiddleware returns a Gin middleware that logs each request with zap.

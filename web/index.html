@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RideX Angola — local studio</title>
+  <style>
+    :root {
+      --bg: #07140f;
+      --panel: #0e2219;
+      --ink: #f4fff6;
+      --muted: #9cb5a4;
+      --line: #1d3b2c;
+      --gold: #e3b341;
+      --green: #2f9e5d;
+      --red: #d45b4a;
+      --phone: #101c16;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #143222, var(--bg) 45%);
+      color: var(--ink);
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--line);
+    }
+    header strong { color: var(--gold); letter-spacing: .08em; }
+    .status { font-size: 13px; color: var(--muted); }
+    .status b { color: var(--green); }
+    .studio {
+      display: grid;
+      grid-template-columns: 1.1fr .78fr .78fr;
+      gap: 18px;
+      padding: 18px;
+      min-height: calc(100vh - 64px);
+    }
+    @media (max-width: 1100px) {
+      .studio { grid-template-columns: 1fr; }
+    }
+    .panel, .phone {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+    }
+    .panel h2, .phone-bar { margin: 0; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .phone-bar { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
+    .body { padding: 16px; display: grid; gap: 10px; }
+    button, input {
+      width: 100%;
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font: inherit;
+    }
+    input { background: #08150f; color: var(--ink); border: 1px solid var(--line); }
+    button { background: var(--gold); color: #1b1403; font-weight: 700; cursor: pointer; }
+    button.secondary { background: #1b3a29; color: var(--ink); }
+    button.danger { background: var(--red); color: white; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .card { background: #08150f; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .ok { color: var(--green); }
+    .err { color: #ffb4a8; white-space: pre-wrap; }
+    .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .kpi { background: #08150f; border-radius: 12px; padding: 12px; }
+    .kpi span { display: block; color: var(--muted); font-size: 12px; }
+    .kpi b { font-size: 22px; }
+    .phone-shell {
+      margin: 0 auto;
+      width: 100%;
+      max-width: 390px;
+      background: var(--phone);
+      min-height: 720px;
+    }
+    .hero { font-size: 22px; font-weight: 800; }
+    .list { display: grid; gap: 8px; max-height: 280px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <header>
+    <div><strong>RIDEX ANGOLA</strong> · local studio</div>
+    <div class="status" id="apiStatus">A ligar à API…</div>
+  </header>
+  <main class="studio">
+    <section class="panel">
+      <h2>Web · operações</h2>
+      <div class="body">
+        <div class="muted">Consola admin no browser. Conta: +244923000000 / DemoPass123!</div>
+        <div class="row">
+          <button onclick="login('admin')">Entrar admin</button>
+          <button class="secondary" onclick="loadAdmin()">Atualizar</button>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><span>Abertas</span><b id="openRides">—</b></div>
+          <div class="kpi"><span>KYC</span><b id="pendingKYC">—</b></div>
+          <div class="kpi"><span>Utilizadores</span><b id="userCount">—</b></div>
+        </div>
+        <div class="card">
+          <div class="muted">Viagens</div>
+          <div class="list" id="adminRides"></div>
+        </div>
+        <div class="card">
+          <div class="muted">Utilizadores</div>
+          <div class="list" id="adminUsers"></div>
+        </div>
+        <div id="adminErr" class="err"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="phone-bar"><span>Mobile · rider</span><span>iOS / Android</span></div>
+      <div class="phone-shell body">
+        <div class="hero">Para onde, Rita?</div>
+        <div class="muted">App passageiro. +244923000001 / DemoPass123!</div>
+        <button onclick="login('rider')">Entrar rider</button>
+        <input id="pickup" value="Marginal de Luanda, Baixa" />
+        <input id="dropoff" value="Talatona Convention Centre" />
+        <div class="row">
+          <button class="secondary" onclick="quote()">Tarifa</button>
+          <button onclick="requestRide()">Pedir viagem</button>
+        </div>
+        <div class="card">
+          <div class="muted">Estado</div>
+          <div id="riderState">Sem viagem</div>
+          <div class="muted" id="riderFare"></div>
+        </div>
+        <div class="row">
+          <button class="secondary" onclick="makePin()">PIN</button>
+          <button class="danger" onclick="cancelRide()">Cancelar</button>
+        </div>
+        <div id="riderErr" class="err"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="phone-bar"><span>Mobile · driver</span><span>Luanda</span></div>
+      <div class="phone-shell body">
+        <div class="hero">Dário · online</div>
+        <div class="muted">App motorista. +244923000002 / DemoPass123!</div>
+        <button onclick="login('driver')">Entrar driver</button>
+        <div class="row">
+          <button class="secondary" onclick="goOnline()">Ficar online</button>
+          <button class="secondary" onclick="refreshOffers()">Ofertas</button>
+        </div>
+        <div class="card">
+          <div class="muted">Oferta / viagem</div>
+          <div id="driverState">À espera de passageiros na Baixa</div>
+        </div>
+        <div class="row">
+          <button onclick="acceptOffer()">Aceitar</button>
+          <button class="secondary" onclick="arrive()">Cheguei</button>
+        </div>
+        <div class="row">
+          <button onclick="startRide()">Iniciar</button>
+          <button onclick="completeRide()">Concluir</button>
+        </div>
+        <button class="secondary" onclick="cashPay()">Confirmar cash</button>
+        <div id="driverErr" class="err"></div>
+      </div>
+    </section>
+  </main>
+  <script>
+    const API = "/api/v1";
+    const ACCOUNTS = {
+      admin: { phone: "+244923000000", password: "DemoPass123!" },
+      rider: { phone: "+244923000001", password: "DemoPass123!" },
+      driver: { phone: "+244923000002", password: "DemoPass123!" },
+    };
+    const FROM = { lat: -9.455, lng: 13.215 };
+    const TO = { lat: -9.450, lng: 13.265 };
+    const tokens = { admin: "", rider: "", driver: "" };
+    let quoteCents = 1500;
+    let rideId = "";
+    let offerRideId = "";
+    let pin = "";
+
+    function cents(v) {
+      if (v == null) return 0;
+      if (typeof v === "number") return v;
+      if (typeof v === "string") return Number(v);
+      if (typeof v === "object" && v.Int != null) return Number(v.Int) * Math.pow(10, Number(v.Exp || 0));
+      return Number(v) || 0;
+    }
+    function kz(v) { return "AOA " + Math.round(cents(v) / 100); }
+    function show(id, msg) { document.getElementById(id).textContent = msg || ""; }
+
+    async function req(path, { method = "GET", token, body } = {}) {
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers.Authorization = "Bearer " + token;
+      const res = await fetch(API + path, {
+        method, headers, body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || res.status + " " + path);
+      return data;
+    }
+
+    async function ping() {
+      try {
+        const health = await fetch("/health").then((r) => r.json());
+        const ready = await fetch("/readyz").then((r) => r.json());
+        document.getElementById("apiStatus").innerHTML =
+          "<b>" + (ready.status || health.status) + "</b> · " + (health.service || "ridex-angola-api");
+      } catch (err) {
+        document.getElementById("apiStatus").textContent = "API indisponível";
+      }
+    }
+
+    async function login(role) {
+      const acc = ACCOUNTS[role];
+      const data = await req("/auth/login", { method: "POST", body: acc });
+      tokens[role] = data.accessToken;
+      show(role === "admin" ? "adminErr" : role === "rider" ? "riderErr" : "driverErr", "");
+      if (role === "admin") return loadAdmin();
+      if (role === "driver") return goOnline();
+      document.getElementById("riderState").textContent = "Sessão rider ativa";
+    }
+
+    async function loadAdmin() {
+      try {
+        const dash = await req("/admin/dashboard", { token: tokens.admin });
+        const rides = await req("/admin/rides", { token: tokens.admin });
+        const users = await req("/admin/users", { token: tokens.admin });
+        document.getElementById("openRides").textContent = dash.openRides ?? "0";
+        document.getElementById("pendingKYC").textContent = dash.pendingKYC ?? "0";
+        const userTotal = (dash.users || []).reduce((n, row) => n + Number(row.count || row.Count || 0), 0);
+        document.getElementById("userCount").textContent = userTotal || (users.users || []).length;
+        document.getElementById("adminRides").innerHTML = (rides.rides || []).slice(0, 8).map((r) =>
+          "<div>" + (r.status || r.Status || "?") + " · " + (r.id || r.ID || "").toString().slice(0, 8) + "</div>"
+        ).join("") || "<div class='muted'>sem viagens</div>";
+        document.getElementById("adminUsers").innerHTML = (users.users || []).slice(0, 8).map((u) =>
+          "<div>" + (u.role || u.Role) + " · " + (u.name || u.Name) + " · " + (u.phone || u.Phone) + "</div>"
+        ).join("");
+        show("adminErr", "");
+      } catch (err) { show("adminErr", err.message); }
+    }
+
+    async function quote() {
+      try {
+        const q = await req("/rides/suggested-fare?fromLat=" + FROM.lat + "&fromLng=" + FROM.lng + "&toLat=" + TO.lat + "&toLng=" + TO.lng);
+        quoteCents = cents(q.totalCents) || 1500;
+        document.getElementById("riderFare").textContent = kz(quoteCents) + " · " + (q.distanceKm || 0).toFixed?.(1) + " km";
+      } catch (err) { show("riderErr", err.message); }
+    }
+
+    async function requestRide() {
+      try {
+        await quote();
+        const data = await req("/rides", {
+          method: "POST",
+          token: tokens.rider,
+          body: {
+            pickupLat: FROM.lat, pickupLng: FROM.lng,
+            pickupAddress: document.getElementById("pickup").value,
+            destinationLat: TO.lat, destinationLng: TO.lng,
+            destinationAddress: document.getElementById("dropoff").value,
+            suggestedFareCents: Math.max(quoteCents, 100),
+          },
+        });
+        rideId = data.ride.id;
+        document.getElementById("riderState").textContent = "Pedido " + data.ride.status + " · " + rideId.slice(0, 8);
+        show("riderErr", "");
+      } catch (err) { show("riderErr", err.message); }
+    }
+
+    async function makePin() {
+      try {
+        const data = await req("/rides/" + rideId + "/trip-pin", { method: "POST", token: tokens.rider });
+        pin = data.tripPin;
+        document.getElementById("riderState").textContent = "PIN da viagem: " + pin;
+      } catch (err) { show("riderErr", err.message); }
+    }
+
+    async function cancelRide() {
+      try {
+        await req("/rides/" + rideId + "/cancel", { method: "POST", token: tokens.rider, body: { reason: "studio_cancel" } });
+        document.getElementById("riderState").textContent = "Cancelada";
+      } catch (err) { show("riderErr", err.message); }
+    }
+
+    async function goOnline() {
+      try {
+        await req("/drivers/location", { method: "POST", token: tokens.driver, body: { lat: FROM.lat, lng: FROM.lng, heading: 90 } });
+        await req("/drivers/availability", { method: "PUT", token: tokens.driver, body: { online: true } });
+        document.getElementById("driverState").textContent = "Online na Baixa · à espera de oferta";
+        show("driverErr", "");
+      } catch (err) { show("driverErr", err.message); }
+    }
+
+    async function refreshOffers() {
+      try {
+        const data = await req("/drivers/offers", { token: tokens.driver });
+        const offer = (data.offers || [])[0];
+        if (!offer) {
+          document.getElementById("driverState").textContent = "Sem ofertas ativas";
+          return;
+        }
+        offerRideId = offer.ride_id || offer.rideId || offer.RideID;
+        rideId = offerRideId || rideId;
+        document.getElementById("driverState").textContent = "Oferta " + String(offerRideId).slice(0, 8);
+        show("driverErr", "");
+      } catch (err) { show("driverErr", err.message); }
+    }
+
+    async function acceptOffer() {
+      try {
+        if (!offerRideId) await refreshOffers();
+        const data = await req("/rides/" + (offerRideId || rideId) + "/accept", { method: "POST", token: tokens.driver });
+        rideId = data.ride.id;
+        document.getElementById("driverState").textContent = "Aceite · " + data.ride.status;
+        document.getElementById("riderState").textContent = "Motorista atribuído";
+      } catch (err) { show("driverErr", err.message); }
+    }
+
+    async function arrive() {
+      try {
+        const data = await req("/rides/" + rideId + "/arrive", { method: "POST", token: tokens.driver });
+        document.getElementById("driverState").textContent = data.ride.status;
+      } catch (err) { show("driverErr", err.message); }
+    }
+    async function startRide() {
+      try {
+        if (pin) {
+          await req("/rides/" + rideId + "/trip-pin/verify", { method: "POST", token: tokens.driver, body: { pin } }).catch(() => {});
+        }
+        const data = await req("/rides/" + rideId + "/start", { method: "POST", token: tokens.driver });
+        document.getElementById("driverState").textContent = data.ride.status;
+        document.getElementById("riderState").textContent = "Em viagem";
+      } catch (err) { show("driverErr", err.message); }
+    }
+    async function completeRide() {
+      try {
+        const data = await req("/rides/" + rideId + "/complete", { method: "POST", token: tokens.driver });
+        document.getElementById("driverState").textContent = data.ride.status;
+        document.getElementById("riderState").textContent = "Concluída";
+        loadAdmin().catch(() => {});
+      } catch (err) { show("driverErr", err.message); }
+    }
+    async function cashPay() {
+      try {
+        const data = await req("/rides/" + rideId + "/cash-payment", {
+          method: "POST", token: tokens.driver, body: { amountPaid: Math.max(quoteCents, 100) },
+        });
+        document.getElementById("driverState").textContent = "Cash " + data.status + " · troco " + kz(data.changeCents);
+      } catch (err) { show("driverErr", err.message); }
+    }
+
+    ping();
+    setInterval(ping, 5000);
+    setInterval(() => { if (tokens.driver) refreshOffers().catch(() => {}); }, 2500);
+  </script>
+</body>
+</html>

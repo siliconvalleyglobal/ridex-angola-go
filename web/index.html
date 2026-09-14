@@ -153,6 +153,13 @@
     .pay {
       display: flex; align-items: center; gap: 10px; padding: 12px 4px; color: var(--ink); font-weight: 700;
     }
+    .cash {
+      width: 18px; height: 12px; border: 2px solid var(--green); border-radius: 3px; position: relative;
+    }
+    .cash::after {
+      content: "Kz"; position: absolute; inset: 0; font-size: 7px; display: grid; place-items: center;
+      color: var(--green); font-weight: 800;
+    }
     .cta {
       width: 100%; border: 0; background: #111; color: #fff;
       border-radius: 16px; padding: 16px; font-size: 16px; font-weight: 800;
@@ -204,7 +211,7 @@
           <path d="M230 20 L270 700"/>
           <path d="M330 90 L350 640"/>
         </g>
-        <g fill="#5b6560" font-size="11" font-family="sans-serif" font-weight="700">
+        <g fill="#7a847e" font-size="7" font-family="sans-serif" font-weight="700">
           <text x="78" y="168">Ilha</text>
           <text x="148" y="300">Baixa</text>
           <text x="248" y="455">Talatona</text>
@@ -262,7 +269,7 @@
           <div><b>Comfort</b><small>6 min · AC</small></div>
           <div class="price" id="priceComfort">—</div>
         </div>
-        <div class="pay">💵 Dinheiro</div>
+        <div class="pay"><span class="cash"></span> Dinheiro</div>
         <button class="cta" id="requestBtn" type="button">Pedir RideX Go</button>
         <div class="err" id="riderErr"></div>
       </div>

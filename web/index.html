@@ -6,202 +6,273 @@
   <title>RideX</title>
   <style>
     :root {
-      --black: #111111;
-      --green: #0b8f4b;
-      --sheet: #ffffff;
+      --ink: #111111;
       --muted: #6b7280;
       --line: #ececec;
-      --bg: #dfe7e2;
-      --pin: #111111;
-      --drop: #0b8f4b;
+      --sheet: #ffffff;
+      --green: #06c167;
+      --green-dark: #059a52;
+      --map: #d7e0da;
+      --water: #8ec4d8;
+      --road: #f7f8f6;
+      --road-edge: #c5cdc8;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
-      background: #0f1110;
-      color: var(--black);
+      background: #0e1110;
+      color: var(--ink);
     }
-    .device {
-      width: min(430px, 100%);
+    .app {
+      width: 100%;
       height: 100dvh;
-      margin: 0 auto;
       position: relative;
       overflow: hidden;
-      background: var(--bg);
+      background: var(--map);
     }
-    .map {
-      position: absolute; inset: 0;
-      background:
-        linear-gradient(90deg, rgba(255,255,255,.35) 1px, transparent 1px) 0 0 / 42px 42px,
-        linear-gradient(rgba(255,255,255,.35) 1px, transparent 1px) 0 0 / 42px 42px,
-        linear-gradient(160deg, #cfd9d3, #e7eee9 45%, #d3ddd6);
-    }
-    .bay {
-      position: absolute; left: -10%; top: 8%; width: 48%; height: 34%;
-      background: #9ec3d6; border-radius: 40% 60% 50% 40%; opacity: .55;
-    }
-    .road {
-      position: absolute; background: #c5cdc8; border-radius: 999px;
-    }
-    .r1 { left: 18%; top: 22%; width: 72%; height: 10px; transform: rotate(-8deg); }
-    .r2 { left: 28%; top: 48%; width: 64%; height: 10px; transform: rotate(12deg); }
-    .r3 { left: 42%; top: 18%; width: 10px; height: 62%; }
-    .label {
-      position: absolute; font-size: 11px; color: #5b6560; font-weight: 600;
-      background: rgba(255,255,255,.72); padding: 3px 7px; border-radius: 8px;
+    .map { position: absolute; inset: 0; }
+    .map svg { width: 100%; height: 100%; display: block; }
+    .you {
+      position: absolute; left: 34%; top: 44%; width: 16px; height: 16px;
+      margin: -8px 0 0 -8px; border-radius: 50%; background: #2f80ed;
+      border: 3px solid #fff; box-shadow: 0 0 0 8px rgba(47,128,237,.18);
+      z-index: 3;
     }
     .pin {
-      position: absolute; width: 18px; height: 18px; border-radius: 50% 50% 50% 0;
-      transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 0 6px 16px rgba(0,0,0,.2);
+      position: absolute; z-index: 4; display: flex; flex-direction: column; align-items: center;
+      transform: translate(-50%, -100%);
     }
-    .pin.pickup { background: var(--pin); left: 34%; top: 41%; }
-    .pin.drop { background: var(--drop); left: 63%; top: 58%; }
-    .route {
-      position: absolute; left: 38%; top: 46%; width: 28%; height: 18%;
-      border: 3px dashed #111; border-left: 0; border-top: 0; border-radius: 0 0 28px 0;
-      opacity: .45; pointer-events: none;
+    .pin i {
+      width: 18px; height: 18px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+      border: 2px solid #fff; box-shadow: 0 8px 16px rgba(0,0,0,.22);
     }
-    .car {
-      position: absolute; left: 36%; top: 43%; font-size: 22px; filter: drop-shadow(0 4px 8px rgba(0,0,0,.25));
+    .pin.pickup { left: 34%; top: 44%; }
+    .pin.pickup i { background: #111; }
+    .pin.drop { left: 68%; top: 62%; }
+    .pin.drop i { background: var(--green); }
+    .pin b {
+      margin-top: 6px; font-size: 11px; background: #fff; padding: 3px 8px;
+      border-radius: 999px; box-shadow: 0 6px 16px rgba(0,0,0,.12); white-space: nowrap;
+    }
+    .cab {
+      position: absolute; z-index: 2; width: 18px; height: 10px; border-radius: 3px;
+      background: #111; box-shadow: 0 4px 10px rgba(0,0,0,.25);
+    }
+    .cab::after {
+      content: ""; position: absolute; inset: 2px 4px; background: #9ca3af; border-radius: 1px;
+    }
+    .ripple {
+      position: absolute; left: 34%; top: 44%; width: 18px; height: 18px; margin: -9px 0 0 -9px;
+      border-radius: 50%; border: 2px solid var(--green); opacity: 0; pointer-events: none; z-index: 2;
+    }
+    .ripple.on { animation: ripple 1.6s ease-out infinite; }
+    @keyframes ripple {
+      0% { transform: scale(1); opacity: .7; }
+      100% { transform: scale(14); opacity: 0; }
     }
     .topbar {
-      position: absolute; top: 0; left: 0; right: 0; z-index: 5;
-      padding: 14px 16px 0;
-      display: flex; justify-content: space-between; align-items: center;
+      position: absolute; top: 0; left: 0; right: 0; z-index: 8;
+      padding: calc(12px + env(safe-area-inset-top)) 16px 0;
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
     }
-    .menu, .chip {
-      background: #fff; border: 0; border-radius: 999px;
-      box-shadow: 0 8px 24px rgba(0,0,0,.12);
-      height: 42px; min-width: 42px; padding: 0 14px;
-      font-weight: 700; cursor: pointer;
+    .icon, .avatar, .locate {
+      width: 44px; height: 44px; border: 0; border-radius: 50%; background: #fff;
+      box-shadow: 0 8px 24px rgba(0,0,0,.14); cursor: pointer; font-weight: 800;
     }
     .switch {
-      display: flex; gap: 6px; background: #fff; padding: 4px; border-radius: 999px;
-      box-shadow: 0 8px 24px rgba(0,0,0,.12);
+      display: flex; gap: 4px; background: #fff; padding: 4px; border-radius: 999px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.14);
     }
     .switch button {
       border: 0; background: transparent; border-radius: 999px;
-      padding: 8px 12px; font-weight: 700; cursor: pointer; color: #6b7280;
+      padding: 8px 14px; font-weight: 700; cursor: pointer; color: #6b7280;
     }
     .switch button.on { background: #111; color: #fff; }
+    .locate {
+      position: absolute; right: 16px; bottom: 320px; z-index: 7; font-size: 18px;
+    }
+    .go {
+      width: 92px; height: 92px; border-radius: 50%; border: 6px solid #fff;
+      background: #111; color: #fff; font-weight: 900; font-size: 22px;
+      position: absolute; right: 18px; bottom: 210px; z-index: 7;
+      box-shadow: 0 14px 32px rgba(0,0,0,.3); cursor: pointer;
+    }
+    .go.on { background: var(--green); }
     .sheet {
-      position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 8;
       background: var(--sheet); border-radius: 28px 28px 0 0;
-      box-shadow: 0 -12px 40px rgba(0,0,0,.18);
-      padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
+      box-shadow: 0 -18px 50px rgba(0,0,0,.18);
+      padding: 8px 18px calc(18px + env(safe-area-inset-bottom));
+      max-height: min(62dvh, 560px); overflow: auto;
     }
-    .grab { width: 42px; height: 4px; background: #e5e7eb; border-radius: 99px; margin: 6px auto 14px; }
-    h1 { font-size: 22px; margin: 0 0 12px; }
-    .search {
-      display: flex; gap: 10px; align-items: center;
-      background: #f3f4f6; border-radius: 16px; padding: 14px 14px; margin-bottom: 10px;
+    @media (min-width: 760px) {
+      .sheet {
+        left: 24px; right: auto; width: 420px; bottom: 24px;
+        border-radius: 28px; max-height: calc(100dvh - 96px);
+      }
+      .go, .locate { right: 40px; }
+      .go { bottom: 40px; }
+      .locate { bottom: 150px; }
     }
+    .grab { width: 42px; height: 5px; background: #e5e7eb; border-radius: 99px; margin: 6px auto 12px; }
+    h1 { font-size: 26px; letter-spacing: -.03em; margin: 0 0 14px; }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 12px 0 8px; }
+    .stops {
+      background: #f4f5f7; border-radius: 18px; padding: 12px 14px; margin-bottom: 12px;
+    }
+    .stop { display: flex; gap: 12px; align-items: center; }
+    .stop + .stop { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e5e7eb; }
+    .rail { width: 12px; display: flex; flex-direction: column; align-items: center; }
     .dot { width: 10px; height: 10px; border-radius: 99px; background: #111; }
     .dot.green { background: var(--green); }
-    input {
-      border: 0; background: transparent; width: 100%; font-size: 16px; outline: none;
+    input, .fare-val {
+      border: 0; background: transparent; width: 100%; font-size: 16px; outline: none; font-weight: 600;
     }
+    .bid {
+      display: flex; align-items: center; justify-content: space-between;
+      border: 1.5px solid var(--line); border-radius: 18px; padding: 10px 12px; margin: 8px 0 12px;
+    }
+    .bid button {
+      width: 40px; height: 40px; border-radius: 50%; border: 0; background: #f3f4f6;
+      font-size: 22px; font-weight: 700; cursor: pointer;
+    }
+    .fare-val { text-align: center; font-size: 22px; font-weight: 800; }
     .product {
       display: flex; align-items: center; gap: 12px; padding: 12px;
-      border: 2px solid transparent; border-radius: 16px; cursor: pointer;
+      border: 2px solid transparent; border-radius: 18px; cursor: pointer;
     }
     .product.sel { border-color: #111; background: #fafafa; }
+    .car-ico {
+      width: 46px; height: 34px; border-radius: 10px; background: #111; position: relative;
+    }
+    .car-ico::after { content: ""; position: absolute; inset: 8px 8px 10px; background: #9ca3af; border-radius: 4px; }
+    .car-ico.comfort { background: #374151; }
     .product b { display: block; }
-    .product span { color: var(--muted); font-size: 13px; }
+    .product small { color: var(--muted); }
     .price { margin-left: auto; font-weight: 800; }
+    .pay {
+      display: flex; align-items: center; gap: 10px; padding: 12px 4px; color: var(--ink); font-weight: 700;
+    }
     .cta {
       width: 100%; border: 0; background: #111; color: #fff;
       border-radius: 16px; padding: 16px; font-size: 16px; font-weight: 800;
-      cursor: pointer; margin-top: 8px;
+      cursor: pointer; margin-top: 6px;
     }
     .cta.green { background: var(--green); }
     .cta.ghost { background: #f3f4f6; color: #111; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .driver {
-      display: flex; gap: 12px; align-items: center; margin: 8px 0 14px;
-    }
-    .avatar {
+    .driver { display: flex; gap: 12px; align-items: center; margin: 8px 0 14px; }
+    .face {
       width: 54px; height: 54px; border-radius: 50%; background: #111; color: #fff;
-      display: grid; place-items: center; font-weight: 800;
+      display: grid; place-items: center; font-weight: 800; flex: none;
     }
     .meta { color: var(--muted); font-size: 13px; }
     .err { color: #b91c1c; font-size: 13px; min-height: 1em; }
-    .status-pill {
+    .pill {
       display: inline-block; background: #111; color: #fff;
       border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 700;
     }
     .offer {
-      border: 1px solid var(--line); border-radius: 18px; padding: 14px; margin: 8px 0;
+      border: 1px solid var(--line); border-radius: 18px; padding: 14px; margin: 8px 0 12px;
     }
-    .go {
-      width: 92px; height: 92px; border-radius: 50%; border: 0;
-      background: #111; color: #fff; font-weight: 900; font-size: 22px;
-      position: absolute; right: 18px; bottom: 210px; z-index: 5;
-      box-shadow: 0 12px 30px rgba(0,0,0,.28); cursor: pointer;
-    }
-    .go.on { background: var(--green); }
-    .hidden { display: none !important; }
-    .searching { display: flex; align-items: center; gap: 10px; }
+    .searching { display: flex; align-items: center; gap: 10px; margin: 10px 0 14px; }
     .pulse {
       width: 12px; height: 12px; border-radius: 50%; background: var(--green);
-      box-shadow: 0 0 0 0 rgba(11,143,75,.6); animation: pulse 1.4s infinite;
+      box-shadow: 0 0 0 0 rgba(6,193,103,.55); animation: pulse 1.4s infinite;
     }
     @keyframes pulse {
-      70% { box-shadow: 0 0 0 12px rgba(11,143,75,0); }
-      100% { box-shadow: 0 0 0 0 rgba(11,143,75,0); }
+      70% { box-shadow: 0 0 0 12px rgba(6,193,103,0); }
+      100% { box-shadow: 0 0 0 0 rgba(6,193,103,0); }
     }
+    .hidden { display: none !important; }
+    .timer { font-weight: 800; color: var(--green-dark); }
   </style>
 </head>
 <body>
-  <div class="device">
-    <div class="map">
-      <div class="bay"></div>
-      <div class="road r1"></div>
-      <div class="road r2"></div>
-      <div class="road r3"></div>
-      <div class="label" style="left:22%;top:28%">Baixa</div>
-      <div class="label" style="left:58%;top:62%">Talatona</div>
-      <div class="route"></div>
-      <div class="pin pickup"></div>
-      <div class="pin drop"></div>
-      <div class="car" id="car">🚗</div>
+  <div class="app">
+    <div class="map" id="map">
+      <svg viewBox="0 0 400 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <rect width="400" height="700" fill="#d7e0da"/>
+        <path d="M-20 0 C60 90 40 180 20 280 C0 390 70 470 -10 720 L-40 720 L-40 0 Z" fill="#8ec4d8"/>
+        <path d="M18 210 C70 230 90 270 40 310 C10 340 8 250 18 210 Z" fill="#cfe8c9"/>
+        <g fill="#f7f8f6" stroke="#c5cdc8" stroke-width="7" stroke-linecap="round">
+          <path d="M70 80 L360 140"/>
+          <path d="M40 220 L380 250"/>
+          <path d="M90 340 L370 390"/>
+          <path d="M30 470 L350 510"/>
+          <path d="M120 40 L150 680"/>
+          <path d="M230 20 L270 700"/>
+          <path d="M330 90 L350 640"/>
+        </g>
+        <g fill="#5b6560" font-size="11" font-family="sans-serif" font-weight="700">
+          <text x="78" y="168">Ilha</text>
+          <text x="148" y="300">Baixa</text>
+          <text x="248" y="455">Talatona</text>
+          <text x="300" y="580">Kilamba</text>
+        </g>
+      </svg>
+      <div class="ripple" id="ripple"></div>
+      <div class="cab" style="left:28%;top:38%;transform:rotate(-18deg)"></div>
+      <div class="cab" style="left:46%;top:52%;transform:rotate(22deg)"></div>
+      <div class="cab" style="left:58%;top:33%;transform:rotate(-8deg)"></div>
+      <div class="cab" id="heroCab" style="left:36%;top:43%;transform:rotate(12deg)"></div>
+      <div class="you" id="you"></div>
+      <div class="pin pickup"><i></i><b>Pickup</b></div>
+      <div class="pin drop"><i></i><b>Talatona</b></div>
     </div>
 
     <div class="topbar">
-      <button class="menu" id="opsBtn" type="button">☰</button>
+      <button class="icon" id="opsBtn" type="button" aria-label="Menu">☰</button>
       <div class="switch">
         <button class="on" id="tabRider" type="button">Passageiro</button>
         <button id="tabDriver" type="button">Motorista</button>
       </div>
+      <button class="avatar" id="whoBtn" type="button">R</button>
     </div>
+    <button class="locate" id="locateBtn" type="button" aria-label="A minha localização">◎</button>
     <button class="go hidden" id="goBtn" type="button">GO</button>
 
     <section class="sheet" id="riderSheet">
       <div class="grab"></div>
       <div id="riderHome">
         <h1>Para onde?</h1>
-        <div class="search"><span class="dot"></span><input id="pickup" value="Marginal de Luanda, Baixa" /></div>
-        <div class="search"><span class="dot green"></span><input id="dropoff" value="Talatona Convention Centre" /></div>
+        <div class="stops">
+          <div class="stop">
+            <span class="dot"></span>
+            <input id="pickup" value="Marginal de Luanda, Baixa" />
+          </div>
+          <div class="stop">
+            <span class="dot green"></span>
+            <input id="dropoff" value="Talatona Convention Centre" />
+          </div>
+        </div>
+        <h2>A tua oferta</h2>
+        <div class="bid">
+          <button type="button" id="fareDown">−</button>
+          <div class="fare-val" id="fareBid">—</div>
+          <button type="button" id="fareUp">+</button>
+        </div>
         <div class="product sel" data-product="go">
-          <div>🚗</div>
-          <div><b>RideX Go</b><span>4 min · económico</span></div>
+          <div class="car-ico"></div>
+          <div><b>RideX Go</b><small>4 min · 1-4 pessoas</small></div>
           <div class="price" id="priceGo">—</div>
         </div>
         <div class="product" data-product="comfort">
-          <div>🚙</div>
-          <div><b>Comfort</b><span>6 min · AC</span></div>
+          <div class="car-ico comfort"></div>
+          <div><b>Comfort</b><small>6 min · AC</small></div>
           <div class="price" id="priceComfort">—</div>
         </div>
+        <div class="pay">💵 Dinheiro</div>
         <button class="cta" id="requestBtn" type="button">Pedir RideX Go</button>
         <div class="err" id="riderErr"></div>
       </div>
       <div id="riderLive" class="hidden">
-        <span class="status-pill" id="riderPill">A procurar motorista</span>
+        <span class="pill" id="riderPill">A procurar motorista</span>
         <div class="searching" id="searching"><div class="pulse"></div><h1>A ligar a um motorista próximo</h1></div>
         <div id="matched" class="hidden">
           <div class="driver">
-            <div class="avatar">D</div>
+            <div class="face">D</div>
             <div>
               <b>Dário Driver</b>
               <div class="meta">Toyota Corolla · LD-00-00-AA · 4.93</div>
@@ -223,6 +294,7 @@
       </div>
       <div id="driverOffer" class="hidden">
         <h1>Novo pedido</h1>
+        <div class="meta timer" id="offerTimer">15s</div>
         <div class="offer">
           <b id="offerPickup">Baixa</b>
           <div class="meta" id="offerDrop">Talatona</div>
@@ -234,9 +306,9 @@
         </div>
       </div>
       <div id="driverTrip" class="hidden">
-        <span class="status-pill" id="driverPill">Pedido aceite</span>
+        <span class="pill" id="driverPill">Pedido aceite</span>
         <div class="driver">
-          <div class="avatar">R</div>
+          <div class="face">R</div>
           <div>
             <b>Rita Rider</b>
             <div class="meta" id="tripAddr">Marginal de Luanda, Baixa</div>
@@ -264,6 +336,8 @@
     let tripStep = "arrive";
     let online = false;
     let role = "rider";
+    let product = "go";
+    let offerLeft = 15;
 
     function cents(v) {
       if (v == null) return 0;
@@ -273,10 +347,17 @@
       return Number(v) || 0;
     }
     function kz(v) {
-      return "Kz " + Math.round(cents(v) / 100).toLocaleString("pt-PT");
+      return "Kz " + Math.round(cents(v)).toLocaleString("pt-PT");
     }
     function show(id, on) { document.getElementById(id).classList.toggle("hidden", !on); }
     function setErr(id, msg) { document.getElementById(id).textContent = msg || ""; }
+    function fareFor(which) { return which === "comfort" ? Math.round(quoteCents * 1.25) : quoteCents; }
+
+    function paintFares() {
+      document.getElementById("fareBid").textContent = kz(quoteCents);
+      document.getElementById("priceGo").textContent = kz(quoteCents);
+      document.getElementById("priceComfort").textContent = kz(Math.round(quoteCents * 1.25));
+    }
 
     async function req(path, { method = "GET", token, body } = {}) {
       const headers = { "Content-Type": "application/json" };
@@ -295,17 +376,18 @@
     async function quote() {
       const q = await req("/rides/suggested-fare?fromLat=" + FROM.lat + "&fromLng=" + FROM.lng + "&toLat=" + TO.lat + "&toLng=" + TO.lng);
       quoteCents = Math.max(cents(q.totalCents) || 1500, 100);
-      document.getElementById("priceGo").textContent = kz(quoteCents);
-      document.getElementById("priceComfort").textContent = kz(quoteCents * 1.25);
+      paintFares();
     }
 
     function setRole(next) {
       role = next;
       document.getElementById("tabRider").classList.toggle("on", role === "rider");
       document.getElementById("tabDriver").classList.toggle("on", role === "driver");
+      document.getElementById("whoBtn").textContent = role === "driver" ? "D" : "R";
       show("riderSheet", role === "rider");
       show("driverSheet", role === "driver");
       show("goBtn", role === "driver");
+      document.getElementById("locateBtn").style.bottom = role === "driver" ? "210px" : "320px";
       if (role === "driver") login("driver").then(goOnline).catch((e) => setErr("driverErr", e.message));
     }
 
@@ -313,7 +395,6 @@
       try {
         setErr("riderErr", "");
         if (!tokens.rider) await login("rider");
-        await quote();
         const data = await req("/rides", {
           method: "POST", token: tokens.rider,
           body: {
@@ -321,7 +402,7 @@
             pickupAddress: document.getElementById("pickup").value,
             destinationLat: TO.lat, destinationLng: TO.lng,
             destinationAddress: document.getElementById("dropoff").value,
-            suggestedFareCents: quoteCents,
+            suggestedFareCents: fareFor(product),
           },
         });
         rideId = data.ride.id;
@@ -329,8 +410,10 @@
         show("riderLive", true);
         show("searching", true);
         show("matched", false);
+        document.getElementById("ripple").classList.add("on");
         document.getElementById("riderPill").textContent = "A procurar motorista";
-        document.getElementById("liveFare").textContent = kz(quoteCents);
+        document.getElementById("liveFare").textContent = kz(fareFor(product));
+        document.getElementById("cancelBtn").textContent = "Cancelar";
       } catch (err) { setErr("riderErr", err.message); }
     }
 
@@ -351,11 +434,12 @@
       if (!offer || document.getElementById("driverTrip").classList.contains("hidden") === false) return;
       offerRideId = offer.RideID || offer.rideId || offer.ride_id;
       rideId = offerRideId || rideId;
+      if (document.getElementById("driverOffer").classList.contains("hidden")) offerLeft = 15;
       show("driverIdle", false);
       show("driverOffer", true);
       document.getElementById("offerPickup").textContent = document.getElementById("pickup").value;
       document.getElementById("offerDrop").textContent = document.getElementById("dropoff").value;
-      document.getElementById("offerFare").textContent = kz(quoteCents);
+      document.getElementById("offerFare").textContent = kz(fareFor(product));
     }
 
     async function acceptOffer() {
@@ -365,6 +449,7 @@
         tripStep = "arrive";
         show("driverOffer", false);
         show("driverTrip", true);
+        document.getElementById("ripple").classList.remove("on");
         document.getElementById("driverPill").textContent = "A caminho do pickup";
         document.getElementById("tripBtn").textContent = "Cheguei";
         document.getElementById("riderPill").textContent = "Motorista a caminho";
@@ -388,6 +473,8 @@
         if (tripStep === "start") {
           await req("/rides/" + rideId + "/start", { method: "POST", token: tokens.driver });
           tripStep = "complete";
+          document.getElementById("heroCab").style.left = "58%";
+          document.getElementById("heroCab").style.top = "58%";
           document.getElementById("driverPill").textContent = "Em viagem";
           document.getElementById("tripBtn").textContent = "Concluir";
           document.getElementById("riderPill").textContent = "A caminho de Talatona";
@@ -395,7 +482,7 @@
           return;
         }
         await req("/rides/" + rideId + "/complete", { method: "POST", token: tokens.driver });
-        await req("/rides/" + rideId + "/cash-payment", { method: "POST", token: tokens.driver, body: { amountPaid: quoteCents } }).catch(() => {});
+        await req("/rides/" + rideId + "/cash-payment", { method: "POST", token: tokens.driver, body: { amountPaid: fareFor(product) } }).catch(() => {});
         tripStep = "done";
         document.getElementById("driverPill").textContent = "Concluída";
         document.getElementById("tripBtn").textContent = "Pronto para o próximo";
@@ -409,37 +496,40 @@
     document.getElementById("tabDriver").onclick = () => setRole("driver");
     document.getElementById("requestBtn").onclick = requestRide;
     document.getElementById("acceptBtn").onclick = acceptOffer;
-    document.getElementById("declineBtn").onclick = () => {
-      show("driverOffer", false);
-      show("driverIdle", true);
-    };
+    document.getElementById("declineBtn").onclick = () => { show("driverOffer", false); show("driverIdle", true); };
     document.getElementById("tripBtn").onclick = () => {
-      if (tripStep === "done") {
-        show("driverTrip", false);
-        show("driverIdle", true);
-        return;
-      }
+      if (tripStep === "done") { show("driverTrip", false); show("driverIdle", true); return; }
       advanceTrip();
     };
     document.getElementById("goBtn").onclick = () => login("driver").then(goOnline);
+    document.getElementById("fareDown").onclick = () => { quoteCents = Math.max(100, quoteCents - 100); paintFares(); };
+    document.getElementById("fareUp").onclick = () => { quoteCents += 100; paintFares(); };
+    document.getElementById("locateBtn").onclick = () => document.getElementById("you").scrollIntoView({ block: "center" });
     document.getElementById("cancelBtn").onclick = async () => {
+      document.getElementById("ripple").classList.remove("on");
       if (tripStep === "done" || document.getElementById("cancelBtn").textContent === "Nova viagem") {
-        show("riderLive", false); show("riderHome", true); return;
+        show("riderLive", false); show("riderHome", true); tripStep = "arrive"; return;
       }
       if (rideId) await req("/rides/" + rideId + "/cancel", { method: "POST", token: tokens.rider, body: { reason: "rider_cancelled" } }).catch(() => {});
       show("riderLive", false); show("riderHome", true);
     };
     document.getElementById("opsBtn").onclick = () => login("admin").then(() => req("/admin/dashboard", { token: tokens.admin })).then((d) => {
-      alert("Ops RideX\nViagens abertas: " + (d.openRides || 0) + "\nUtilizadores: " + (d.users || []).length);
+      alert("RideX · Luanda\nViagens abertas: " + (d.openRides || 0));
     });
     document.querySelectorAll(".product").forEach((el) => el.onclick = () => {
       document.querySelectorAll(".product").forEach((p) => p.classList.remove("sel"));
       el.classList.add("sel");
+      product = el.dataset.product;
       document.getElementById("requestBtn").textContent = "Pedir " + el.querySelector("b").textContent;
     });
 
     login("rider").then(quote).catch((e) => setErr("riderErr", e.message));
     setInterval(() => pollOffers().catch(() => {}), 2000);
+    setInterval(() => {
+      if (document.getElementById("driverOffer").classList.contains("hidden")) return;
+      offerLeft = Math.max(0, offerLeft - 1);
+      document.getElementById("offerTimer").textContent = offerLeft + "s";
+    }, 1000);
   </script>
 </body>
 </html>

@@ -2,184 +2,268 @@
 <html lang="pt">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RideX Angola — local studio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>RideX</title>
   <style>
     :root {
-      --bg: #07140f;
-      --panel: #0e2219;
-      --ink: #f4fff6;
-      --muted: #9cb5a4;
-      --line: #1d3b2c;
-      --gold: #e3b341;
-      --green: #2f9e5d;
-      --red: #d45b4a;
-      --phone: #101c16;
+      --black: #111111;
+      --green: #0b8f4b;
+      --sheet: #ffffff;
+      --muted: #6b7280;
+      --line: #ececec;
+      --bg: #dfe7e2;
+      --pin: #111111;
+      --drop: #0b8f4b;
     }
     * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
     body {
-      margin: 0;
-      font-family: "Avenir Next", "Segoe UI", sans-serif;
-      background: radial-gradient(circle at top, #143222, var(--bg) 45%);
-      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      background: #0f1110;
+      color: var(--black);
     }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 16px 24px;
-      border-bottom: 1px solid var(--line);
-    }
-    header strong { color: var(--gold); letter-spacing: .08em; }
-    .status { font-size: 13px; color: var(--muted); }
-    .status b { color: var(--green); }
-    .studio {
-      display: grid;
-      grid-template-columns: 1.1fr .78fr .78fr;
-      gap: 18px;
-      padding: 18px;
-      min-height: calc(100vh - 64px);
-    }
-    @media (max-width: 1100px) {
-      .studio { grid-template-columns: 1fr; }
-    }
-    .panel, .phone {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      overflow: hidden;
-    }
-    .panel h2, .phone-bar { margin: 0; padding: 14px 16px; border-bottom: 1px solid var(--line); }
-    .phone-bar { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); }
-    .body { padding: 16px; display: grid; gap: 10px; }
-    button, input {
-      width: 100%;
-      border: 0;
-      border-radius: 10px;
-      padding: 10px 12px;
-      font: inherit;
-    }
-    input { background: #08150f; color: var(--ink); border: 1px solid var(--line); }
-    button { background: var(--gold); color: #1b1403; font-weight: 700; cursor: pointer; }
-    button.secondary { background: #1b3a29; color: var(--ink); }
-    button.danger { background: var(--red); color: white; }
-    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .card { background: #08150f; border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
-    .muted { color: var(--muted); font-size: 13px; }
-    .ok { color: var(--green); }
-    .err { color: #ffb4a8; white-space: pre-wrap; }
-    .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .kpi { background: #08150f; border-radius: 12px; padding: 12px; }
-    .kpi span { display: block; color: var(--muted); font-size: 12px; }
-    .kpi b { font-size: 22px; }
-    .phone-shell {
+    .device {
+      width: min(430px, 100%);
+      height: 100dvh;
       margin: 0 auto;
-      width: 100%;
-      max-width: 390px;
-      background: var(--phone);
-      min-height: 720px;
+      position: relative;
+      overflow: hidden;
+      background: var(--bg);
     }
-    .hero { font-size: 22px; font-weight: 800; }
-    .list { display: grid; gap: 8px; max-height: 280px; overflow: auto; }
+    .map {
+      position: absolute; inset: 0;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.35) 1px, transparent 1px) 0 0 / 42px 42px,
+        linear-gradient(rgba(255,255,255,.35) 1px, transparent 1px) 0 0 / 42px 42px,
+        linear-gradient(160deg, #cfd9d3, #e7eee9 45%, #d3ddd6);
+    }
+    .bay {
+      position: absolute; left: -10%; top: 8%; width: 48%; height: 34%;
+      background: #9ec3d6; border-radius: 40% 60% 50% 40%; opacity: .55;
+    }
+    .road {
+      position: absolute; background: #c5cdc8; border-radius: 999px;
+    }
+    .r1 { left: 18%; top: 22%; width: 72%; height: 10px; transform: rotate(-8deg); }
+    .r2 { left: 28%; top: 48%; width: 64%; height: 10px; transform: rotate(12deg); }
+    .r3 { left: 42%; top: 18%; width: 10px; height: 62%; }
+    .label {
+      position: absolute; font-size: 11px; color: #5b6560; font-weight: 600;
+      background: rgba(255,255,255,.72); padding: 3px 7px; border-radius: 8px;
+    }
+    .pin {
+      position: absolute; width: 18px; height: 18px; border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg); border: 2px solid #fff; box-shadow: 0 6px 16px rgba(0,0,0,.2);
+    }
+    .pin.pickup { background: var(--pin); left: 34%; top: 41%; }
+    .pin.drop { background: var(--drop); left: 63%; top: 58%; }
+    .route {
+      position: absolute; left: 38%; top: 46%; width: 28%; height: 18%;
+      border: 3px dashed #111; border-left: 0; border-top: 0; border-radius: 0 0 28px 0;
+      opacity: .45; pointer-events: none;
+    }
+    .car {
+      position: absolute; left: 36%; top: 43%; font-size: 22px; filter: drop-shadow(0 4px 8px rgba(0,0,0,.25));
+    }
+    .topbar {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+      padding: 14px 16px 0;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .menu, .chip {
+      background: #fff; border: 0; border-radius: 999px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.12);
+      height: 42px; min-width: 42px; padding: 0 14px;
+      font-weight: 700; cursor: pointer;
+    }
+    .switch {
+      display: flex; gap: 6px; background: #fff; padding: 4px; border-radius: 999px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.12);
+    }
+    .switch button {
+      border: 0; background: transparent; border-radius: 999px;
+      padding: 8px 12px; font-weight: 700; cursor: pointer; color: #6b7280;
+    }
+    .switch button.on { background: #111; color: #fff; }
+    .sheet {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
+      background: var(--sheet); border-radius: 28px 28px 0 0;
+      box-shadow: 0 -12px 40px rgba(0,0,0,.18);
+      padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
+    }
+    .grab { width: 42px; height: 4px; background: #e5e7eb; border-radius: 99px; margin: 6px auto 14px; }
+    h1 { font-size: 22px; margin: 0 0 12px; }
+    .search {
+      display: flex; gap: 10px; align-items: center;
+      background: #f3f4f6; border-radius: 16px; padding: 14px 14px; margin-bottom: 10px;
+    }
+    .dot { width: 10px; height: 10px; border-radius: 99px; background: #111; }
+    .dot.green { background: var(--green); }
+    input {
+      border: 0; background: transparent; width: 100%; font-size: 16px; outline: none;
+    }
+    .product {
+      display: flex; align-items: center; gap: 12px; padding: 12px;
+      border: 2px solid transparent; border-radius: 16px; cursor: pointer;
+    }
+    .product.sel { border-color: #111; background: #fafafa; }
+    .product b { display: block; }
+    .product span { color: var(--muted); font-size: 13px; }
+    .price { margin-left: auto; font-weight: 800; }
+    .cta {
+      width: 100%; border: 0; background: #111; color: #fff;
+      border-radius: 16px; padding: 16px; font-size: 16px; font-weight: 800;
+      cursor: pointer; margin-top: 8px;
+    }
+    .cta.green { background: var(--green); }
+    .cta.ghost { background: #f3f4f6; color: #111; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .driver {
+      display: flex; gap: 12px; align-items: center; margin: 8px 0 14px;
+    }
+    .avatar {
+      width: 54px; height: 54px; border-radius: 50%; background: #111; color: #fff;
+      display: grid; place-items: center; font-weight: 800;
+    }
+    .meta { color: var(--muted); font-size: 13px; }
+    .err { color: #b91c1c; font-size: 13px; min-height: 1em; }
+    .status-pill {
+      display: inline-block; background: #111; color: #fff;
+      border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 700;
+    }
+    .offer {
+      border: 1px solid var(--line); border-radius: 18px; padding: 14px; margin: 8px 0;
+    }
+    .go {
+      width: 92px; height: 92px; border-radius: 50%; border: 0;
+      background: #111; color: #fff; font-weight: 900; font-size: 22px;
+      position: absolute; right: 18px; bottom: 210px; z-index: 5;
+      box-shadow: 0 12px 30px rgba(0,0,0,.28); cursor: pointer;
+    }
+    .go.on { background: var(--green); }
+    .hidden { display: none !important; }
+    .searching { display: flex; align-items: center; gap: 10px; }
+    .pulse {
+      width: 12px; height: 12px; border-radius: 50%; background: var(--green);
+      box-shadow: 0 0 0 0 rgba(11,143,75,.6); animation: pulse 1.4s infinite;
+    }
+    @keyframes pulse {
+      70% { box-shadow: 0 0 0 12px rgba(11,143,75,0); }
+      100% { box-shadow: 0 0 0 0 rgba(11,143,75,0); }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <div><strong>RIDEX ANGOLA</strong> · local studio</div>
-    <div class="status" id="apiStatus">A ligar à API…</div>
-  </header>
-  <main class="studio">
-    <section class="panel">
-      <h2>Web · operações</h2>
-      <div class="body">
-        <div class="muted">Consola admin no browser. Conta: +244923000000 / DemoPass123!</div>
-        <div class="row">
-          <button onclick="login('admin')">Entrar admin</button>
-          <button class="secondary" onclick="loadAdmin()">Atualizar</button>
+  <div class="device">
+    <div class="map">
+      <div class="bay"></div>
+      <div class="road r1"></div>
+      <div class="road r2"></div>
+      <div class="road r3"></div>
+      <div class="label" style="left:22%;top:28%">Baixa</div>
+      <div class="label" style="left:58%;top:62%">Talatona</div>
+      <div class="route"></div>
+      <div class="pin pickup"></div>
+      <div class="pin drop"></div>
+      <div class="car" id="car">🚗</div>
+    </div>
+
+    <div class="topbar">
+      <button class="menu" id="opsBtn" type="button">☰</button>
+      <div class="switch">
+        <button class="on" id="tabRider" type="button">Passageiro</button>
+        <button id="tabDriver" type="button">Motorista</button>
+      </div>
+    </div>
+    <button class="go hidden" id="goBtn" type="button">GO</button>
+
+    <section class="sheet" id="riderSheet">
+      <div class="grab"></div>
+      <div id="riderHome">
+        <h1>Para onde?</h1>
+        <div class="search"><span class="dot"></span><input id="pickup" value="Marginal de Luanda, Baixa" /></div>
+        <div class="search"><span class="dot green"></span><input id="dropoff" value="Talatona Convention Centre" /></div>
+        <div class="product sel" data-product="go">
+          <div>🚗</div>
+          <div><b>RideX Go</b><span>4 min · económico</span></div>
+          <div class="price" id="priceGo">—</div>
         </div>
-        <div class="kpis">
-          <div class="kpi"><span>Abertas</span><b id="openRides">—</b></div>
-          <div class="kpi"><span>KYC</span><b id="pendingKYC">—</b></div>
-          <div class="kpi"><span>Utilizadores</span><b id="userCount">—</b></div>
+        <div class="product" data-product="comfort">
+          <div>🚙</div>
+          <div><b>Comfort</b><span>6 min · AC</span></div>
+          <div class="price" id="priceComfort">—</div>
         </div>
-        <div class="card">
-          <div class="muted">Viagens</div>
-          <div class="list" id="adminRides"></div>
+        <button class="cta" id="requestBtn" type="button">Pedir RideX Go</button>
+        <div class="err" id="riderErr"></div>
+      </div>
+      <div id="riderLive" class="hidden">
+        <span class="status-pill" id="riderPill">A procurar motorista</span>
+        <div class="searching" id="searching"><div class="pulse"></div><h1>A ligar a um motorista próximo</h1></div>
+        <div id="matched" class="hidden">
+          <div class="driver">
+            <div class="avatar">D</div>
+            <div>
+              <b>Dário Driver</b>
+              <div class="meta">Toyota Corolla · LD-00-00-AA · 4.93</div>
+            </div>
+            <div class="price" id="liveFare"></div>
+          </div>
+          <div class="meta" id="riderState">Motorista a caminho</div>
         </div>
-        <div class="card">
-          <div class="muted">Utilizadores</div>
-          <div class="list" id="adminUsers"></div>
-        </div>
-        <div id="adminErr" class="err"></div>
+        <button class="cta ghost" id="cancelBtn" type="button">Cancelar</button>
+        <div class="err" id="riderLiveErr"></div>
       </div>
     </section>
 
-    <section class="panel">
-      <div class="phone-bar"><span>Mobile · rider</span><span>iOS / Android</span></div>
-      <div class="phone-shell body">
-        <div class="hero">Para onde, Rita?</div>
-        <div class="muted">App passageiro. +244923000001 / DemoPass123!</div>
-        <button onclick="login('rider')">Entrar rider</button>
-        <input id="pickup" value="Marginal de Luanda, Baixa" />
-        <input id="dropoff" value="Talatona Convention Centre" />
-        <div class="row">
-          <button class="secondary" onclick="quote()">Tarifa</button>
-          <button onclick="requestRide()">Pedir viagem</button>
-        </div>
-        <div class="card">
-          <div class="muted">Estado</div>
-          <div id="riderState">Sem viagem</div>
-          <div class="muted" id="riderFare"></div>
+    <section class="sheet hidden" id="driverSheet">
+      <div class="grab"></div>
+      <div id="driverIdle">
+        <h1 id="driverTitle">Estás offline</h1>
+        <div class="meta" id="driverHint">Toca em GO para receber pedidos em Luanda.</div>
+      </div>
+      <div id="driverOffer" class="hidden">
+        <h1>Novo pedido</h1>
+        <div class="offer">
+          <b id="offerPickup">Baixa</b>
+          <div class="meta" id="offerDrop">Talatona</div>
+          <div class="price" id="offerFare"></div>
         </div>
         <div class="row">
-          <button class="secondary" onclick="makePin()">PIN</button>
-          <button class="danger" onclick="cancelRide()">Cancelar</button>
+          <button class="cta ghost" id="declineBtn" type="button">Recusar</button>
+          <button class="cta green" id="acceptBtn" type="button">Aceitar</button>
         </div>
-        <div id="riderErr" class="err"></div>
+      </div>
+      <div id="driverTrip" class="hidden">
+        <span class="status-pill" id="driverPill">Pedido aceite</span>
+        <div class="driver">
+          <div class="avatar">R</div>
+          <div>
+            <b>Rita Rider</b>
+            <div class="meta" id="tripAddr">Marginal de Luanda, Baixa</div>
+          </div>
+        </div>
+        <button class="cta" id="tripBtn" type="button">Cheguei</button>
+        <div class="err" id="driverErr"></div>
       </div>
     </section>
+  </div>
 
-    <section class="panel">
-      <div class="phone-bar"><span>Mobile · driver</span><span>Luanda</span></div>
-      <div class="phone-shell body">
-        <div class="hero">Dário · online</div>
-        <div class="muted">App motorista. +244923000002 / DemoPass123!</div>
-        <button onclick="login('driver')">Entrar driver</button>
-        <div class="row">
-          <button class="secondary" onclick="goOnline()">Ficar online</button>
-          <button class="secondary" onclick="refreshOffers()">Ofertas</button>
-        </div>
-        <div class="card">
-          <div class="muted">Oferta / viagem</div>
-          <div id="driverState">À espera de passageiros na Baixa</div>
-        </div>
-        <div class="row">
-          <button onclick="acceptOffer()">Aceitar</button>
-          <button class="secondary" onclick="arrive()">Cheguei</button>
-        </div>
-        <div class="row">
-          <button onclick="startRide()">Iniciar</button>
-          <button onclick="completeRide()">Concluir</button>
-        </div>
-        <button class="secondary" onclick="cashPay()">Confirmar cash</button>
-        <div id="driverErr" class="err"></div>
-      </div>
-    </section>
-  </main>
   <script>
     const API = "/api/v1";
     const ACCOUNTS = {
-      admin: { phone: "+244923000000", password: "DemoPass123!" },
       rider: { phone: "+244923000001", password: "DemoPass123!" },
       driver: { phone: "+244923000002", password: "DemoPass123!" },
+      admin: { phone: "+244923000000", password: "DemoPass123!" },
     };
     const FROM = { lat: -9.455, lng: 13.215 };
     const TO = { lat: -9.450, lng: 13.265 };
-    const tokens = { admin: "", rider: "", driver: "" };
+    const tokens = { rider: "", driver: "", admin: "" };
     let quoteCents = 1500;
     let rideId = "";
     let offerRideId = "";
-    let pin = "";
+    let tripStep = "arrive";
+    let online = false;
+    let role = "rider";
 
     function cents(v) {
       if (v == null) return 0;
@@ -188,173 +272,174 @@
       if (typeof v === "object" && v.Int != null) return Number(v.Int) * Math.pow(10, Number(v.Exp || 0));
       return Number(v) || 0;
     }
-    function kz(v) { return "AOA " + Math.round(cents(v) / 100); }
-    function show(id, msg) { document.getElementById(id).textContent = msg || ""; }
+    function kz(v) {
+      return "Kz " + Math.round(cents(v) / 100).toLocaleString("pt-PT");
+    }
+    function show(id, on) { document.getElementById(id).classList.toggle("hidden", !on); }
+    function setErr(id, msg) { document.getElementById(id).textContent = msg || ""; }
 
     async function req(path, { method = "GET", token, body } = {}) {
       const headers = { "Content-Type": "application/json" };
       if (token) headers.Authorization = "Bearer " + token;
-      const res = await fetch(API + path, {
-        method, headers, body: body ? JSON.stringify(body) : undefined,
-      });
+      const res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || res.status + " " + path);
       return data;
     }
-
-    async function ping() {
-      try {
-        const health = await fetch("/health").then((r) => r.json());
-        const ready = await fetch("/readyz").then((r) => r.json());
-        document.getElementById("apiStatus").innerHTML =
-          "<b>" + (ready.status || health.status) + "</b> · " + (health.service || "ridex-angola-api");
-      } catch (err) {
-        document.getElementById("apiStatus").textContent = "API indisponível";
-      }
-    }
-
-    async function login(role) {
-      const acc = ACCOUNTS[role];
-      const data = await req("/auth/login", { method: "POST", body: acc });
-      tokens[role] = data.accessToken;
-      show(role === "admin" ? "adminErr" : role === "rider" ? "riderErr" : "driverErr", "");
-      if (role === "admin") return loadAdmin();
-      if (role === "driver") return goOnline();
-      document.getElementById("riderState").textContent = "Sessão rider ativa";
-    }
-
-    async function loadAdmin() {
-      try {
-        const dash = await req("/admin/dashboard", { token: tokens.admin });
-        const rides = await req("/admin/rides", { token: tokens.admin });
-        const users = await req("/admin/users", { token: tokens.admin });
-        document.getElementById("openRides").textContent = dash.openRides ?? "0";
-        document.getElementById("pendingKYC").textContent = dash.pendingKYC ?? "0";
-        const userTotal = (dash.users || []).reduce((n, row) => n + Number(row.count || row.Count || 0), 0);
-        document.getElementById("userCount").textContent = userTotal || (users.users || []).length;
-        document.getElementById("adminRides").innerHTML = (rides.rides || []).slice(0, 8).map((r) =>
-          "<div>" + (r.status || r.Status || "?") + " · " + (r.id || r.ID || "").toString().slice(0, 8) + "</div>"
-        ).join("") || "<div class='muted'>sem viagens</div>";
-        document.getElementById("adminUsers").innerHTML = (users.users || []).slice(0, 8).map((u) =>
-          "<div>" + (u.role || u.Role) + " · " + (u.name || u.Name) + " · " + (u.phone || u.Phone) + "</div>"
-        ).join("");
-        show("adminErr", "");
-      } catch (err) { show("adminErr", err.message); }
+    async function login(which) {
+      const data = await req("/auth/login", { method: "POST", body: ACCOUNTS[which] });
+      tokens[which] = data.accessToken;
+      return data;
     }
 
     async function quote() {
-      try {
-        const q = await req("/rides/suggested-fare?fromLat=" + FROM.lat + "&fromLng=" + FROM.lng + "&toLat=" + TO.lat + "&toLng=" + TO.lng);
-        quoteCents = cents(q.totalCents) || 1500;
-        document.getElementById("riderFare").textContent = kz(quoteCents) + " · " + (q.distanceKm || 0).toFixed?.(1) + " km";
-      } catch (err) { show("riderErr", err.message); }
+      const q = await req("/rides/suggested-fare?fromLat=" + FROM.lat + "&fromLng=" + FROM.lng + "&toLat=" + TO.lat + "&toLng=" + TO.lng);
+      quoteCents = Math.max(cents(q.totalCents) || 1500, 100);
+      document.getElementById("priceGo").textContent = kz(quoteCents);
+      document.getElementById("priceComfort").textContent = kz(quoteCents * 1.25);
+    }
+
+    function setRole(next) {
+      role = next;
+      document.getElementById("tabRider").classList.toggle("on", role === "rider");
+      document.getElementById("tabDriver").classList.toggle("on", role === "driver");
+      show("riderSheet", role === "rider");
+      show("driverSheet", role === "driver");
+      show("goBtn", role === "driver");
+      if (role === "driver") login("driver").then(goOnline).catch((e) => setErr("driverErr", e.message));
     }
 
     async function requestRide() {
       try {
+        setErr("riderErr", "");
+        if (!tokens.rider) await login("rider");
         await quote();
         const data = await req("/rides", {
-          method: "POST",
-          token: tokens.rider,
+          method: "POST", token: tokens.rider,
           body: {
             pickupLat: FROM.lat, pickupLng: FROM.lng,
             pickupAddress: document.getElementById("pickup").value,
             destinationLat: TO.lat, destinationLng: TO.lng,
             destinationAddress: document.getElementById("dropoff").value,
-            suggestedFareCents: Math.max(quoteCents, 100),
+            suggestedFareCents: quoteCents,
           },
         });
         rideId = data.ride.id;
-        document.getElementById("riderState").textContent = "Pedido " + data.ride.status + " · " + rideId.slice(0, 8);
-        show("riderErr", "");
-      } catch (err) { show("riderErr", err.message); }
-    }
-
-    async function makePin() {
-      try {
-        const data = await req("/rides/" + rideId + "/trip-pin", { method: "POST", token: tokens.rider });
-        pin = data.tripPin;
-        document.getElementById("riderState").textContent = "PIN da viagem: " + pin;
-      } catch (err) { show("riderErr", err.message); }
-    }
-
-    async function cancelRide() {
-      try {
-        await req("/rides/" + rideId + "/cancel", { method: "POST", token: tokens.rider, body: { reason: "studio_cancel" } });
-        document.getElementById("riderState").textContent = "Cancelada";
-      } catch (err) { show("riderErr", err.message); }
+        show("riderHome", false);
+        show("riderLive", true);
+        show("searching", true);
+        show("matched", false);
+        document.getElementById("riderPill").textContent = "A procurar motorista";
+        document.getElementById("liveFare").textContent = kz(quoteCents);
+      } catch (err) { setErr("riderErr", err.message); }
     }
 
     async function goOnline() {
-      try {
-        await req("/drivers/location", { method: "POST", token: tokens.driver, body: { lat: FROM.lat, lng: FROM.lng, heading: 90 } });
-        await req("/drivers/availability", { method: "PUT", token: tokens.driver, body: { online: true } });
-        document.getElementById("driverState").textContent = "Online na Baixa · à espera de oferta";
-        show("driverErr", "");
-      } catch (err) { show("driverErr", err.message); }
+      await req("/drivers/location", { method: "POST", token: tokens.driver, body: { lat: FROM.lat, lng: FROM.lng, heading: 90 } });
+      await req("/drivers/availability", { method: "PUT", token: tokens.driver, body: { online: true } });
+      online = true;
+      document.getElementById("goBtn").classList.add("on");
+      document.getElementById("goBtn").textContent = "ON";
+      document.getElementById("driverTitle").textContent = "Estás online";
+      document.getElementById("driverHint").textContent = "À espera de pedidos na Baixa.";
     }
 
-    async function refreshOffers() {
-      try {
-        const data = await req("/drivers/offers", { token: tokens.driver });
-        const offer = (data.offers || [])[0];
-        if (!offer) {
-          document.getElementById("driverState").textContent = "Sem ofertas ativas";
-          return;
-        }
-        offerRideId = offer.ride_id || offer.rideId || offer.RideID;
-        rideId = offerRideId || rideId;
-        document.getElementById("driverState").textContent = "Oferta " + String(offerRideId).slice(0, 8);
-        show("driverErr", "");
-      } catch (err) { show("driverErr", err.message); }
+    async function pollOffers() {
+      if (role !== "driver" || !tokens.driver || !online) return;
+      const data = await req("/drivers/offers", { token: tokens.driver });
+      const offer = (data.offers || [])[0];
+      if (!offer || document.getElementById("driverTrip").classList.contains("hidden") === false) return;
+      offerRideId = offer.RideID || offer.rideId || offer.ride_id;
+      rideId = offerRideId || rideId;
+      show("driverIdle", false);
+      show("driverOffer", true);
+      document.getElementById("offerPickup").textContent = document.getElementById("pickup").value;
+      document.getElementById("offerDrop").textContent = document.getElementById("dropoff").value;
+      document.getElementById("offerFare").textContent = kz(quoteCents);
     }
 
     async function acceptOffer() {
       try {
-        if (!offerRideId) await refreshOffers();
         const data = await req("/rides/" + (offerRideId || rideId) + "/accept", { method: "POST", token: tokens.driver });
         rideId = data.ride.id;
-        document.getElementById("driverState").textContent = "Aceite · " + data.ride.status;
-        document.getElementById("riderState").textContent = "Motorista atribuído";
-      } catch (err) { show("driverErr", err.message); }
+        tripStep = "arrive";
+        show("driverOffer", false);
+        show("driverTrip", true);
+        document.getElementById("driverPill").textContent = "A caminho do pickup";
+        document.getElementById("tripBtn").textContent = "Cheguei";
+        document.getElementById("riderPill").textContent = "Motorista a caminho";
+        show("searching", false);
+        show("matched", true);
+        document.getElementById("riderState").textContent = "Dário chega em 4 min";
+      } catch (err) { setErr("driverErr", err.message); }
     }
 
-    async function arrive() {
+    async function advanceTrip() {
       try {
-        const data = await req("/rides/" + rideId + "/arrive", { method: "POST", token: tokens.driver });
-        document.getElementById("driverState").textContent = data.ride.status;
-      } catch (err) { show("driverErr", err.message); }
-    }
-    async function startRide() {
-      try {
-        if (pin) {
-          await req("/rides/" + rideId + "/trip-pin/verify", { method: "POST", token: tokens.driver, body: { pin } }).catch(() => {});
+        setErr("driverErr", "");
+        if (tripStep === "arrive") {
+          await req("/rides/" + rideId + "/arrive", { method: "POST", token: tokens.driver });
+          tripStep = "start";
+          document.getElementById("driverPill").textContent = "No pickup";
+          document.getElementById("tripBtn").textContent = "Iniciar viagem";
+          document.getElementById("riderState").textContent = "O teu RideX chegou";
+          return;
         }
-        const data = await req("/rides/" + rideId + "/start", { method: "POST", token: tokens.driver });
-        document.getElementById("driverState").textContent = data.ride.status;
-        document.getElementById("riderState").textContent = "Em viagem";
-      } catch (err) { show("driverErr", err.message); }
-    }
-    async function completeRide() {
-      try {
-        const data = await req("/rides/" + rideId + "/complete", { method: "POST", token: tokens.driver });
-        document.getElementById("driverState").textContent = data.ride.status;
-        document.getElementById("riderState").textContent = "Concluída";
-        loadAdmin().catch(() => {});
-      } catch (err) { show("driverErr", err.message); }
-    }
-    async function cashPay() {
-      try {
-        const data = await req("/rides/" + rideId + "/cash-payment", {
-          method: "POST", token: tokens.driver, body: { amountPaid: Math.max(quoteCents, 100) },
-        });
-        document.getElementById("driverState").textContent = "Cash " + data.status + " · troco " + kz(data.changeCents);
-      } catch (err) { show("driverErr", err.message); }
+        if (tripStep === "start") {
+          await req("/rides/" + rideId + "/start", { method: "POST", token: tokens.driver });
+          tripStep = "complete";
+          document.getElementById("driverPill").textContent = "Em viagem";
+          document.getElementById("tripBtn").textContent = "Concluir";
+          document.getElementById("riderPill").textContent = "A caminho de Talatona";
+          document.getElementById("riderState").textContent = "Viagem em curso";
+          return;
+        }
+        await req("/rides/" + rideId + "/complete", { method: "POST", token: tokens.driver });
+        await req("/rides/" + rideId + "/cash-payment", { method: "POST", token: tokens.driver, body: { amountPaid: quoteCents } }).catch(() => {});
+        tripStep = "done";
+        document.getElementById("driverPill").textContent = "Concluída";
+        document.getElementById("tripBtn").textContent = "Pronto para o próximo";
+        document.getElementById("riderPill").textContent = "Chegaste";
+        document.getElementById("riderState").textContent = "Obrigado por viajar com a RideX";
+        document.getElementById("cancelBtn").textContent = "Nova viagem";
+      } catch (err) { setErr("driverErr", err.message); }
     }
 
-    ping();
-    setInterval(ping, 5000);
-    setInterval(() => { if (tokens.driver) refreshOffers().catch(() => {}); }, 2500);
+    document.getElementById("tabRider").onclick = () => setRole("rider");
+    document.getElementById("tabDriver").onclick = () => setRole("driver");
+    document.getElementById("requestBtn").onclick = requestRide;
+    document.getElementById("acceptBtn").onclick = acceptOffer;
+    document.getElementById("declineBtn").onclick = () => {
+      show("driverOffer", false);
+      show("driverIdle", true);
+    };
+    document.getElementById("tripBtn").onclick = () => {
+      if (tripStep === "done") {
+        show("driverTrip", false);
+        show("driverIdle", true);
+        return;
+      }
+      advanceTrip();
+    };
+    document.getElementById("goBtn").onclick = () => login("driver").then(goOnline);
+    document.getElementById("cancelBtn").onclick = async () => {
+      if (tripStep === "done" || document.getElementById("cancelBtn").textContent === "Nova viagem") {
+        show("riderLive", false); show("riderHome", true); return;
+      }
+      if (rideId) await req("/rides/" + rideId + "/cancel", { method: "POST", token: tokens.rider, body: { reason: "rider_cancelled" } }).catch(() => {});
+      show("riderLive", false); show("riderHome", true);
+    };
+    document.getElementById("opsBtn").onclick = () => login("admin").then(() => req("/admin/dashboard", { token: tokens.admin })).then((d) => {
+      alert("Ops RideX\nViagens abertas: " + (d.openRides || 0) + "\nUtilizadores: " + (d.users || []).length);
+    });
+    document.querySelectorAll(".product").forEach((el) => el.onclick = () => {
+      document.querySelectorAll(".product").forEach((p) => p.classList.remove("sel"));
+      el.classList.add("sel");
+      document.getElementById("requestBtn").textContent = "Pedir " + el.querySelector("b").textContent;
+    });
+
+    login("rider").then(quote).catch((e) => setErr("riderErr", e.message));
+    setInterval(() => pollOffers().catch(() => {}), 2000);
   </script>
 </body>
 </html>

@@ -519,6 +519,7 @@ func main() {
 
 func serveStudio(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
+	c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:")
 	c.Data(http.StatusOK, "text/html; charset=utf-8", web.IndexHTML())
 }
 

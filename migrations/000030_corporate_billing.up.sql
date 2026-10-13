@@ -19,21 +19,7 @@ CREATE TABLE IF NOT EXISTS corporate_invoices (
 CREATE INDEX idx_corporate_invoices_account ON corporate_invoices(account_id, period_end DESC);
 CREATE INDEX idx_corporate_invoices_status ON corporate_invoices(status);
 
--- Invoice Items
-CREATE TABLE IF NOT EXISTS corporate_invoice_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    invoice_id UUID NOT NULL REFERENCES corporate_invoices(id) ON DELETE CASCADE,
-    description TEXT NOT NULL,
-    ride_id UUID REFERENCES rides(id) ON DELETE SET NULL,
-    date TIMESTAMPTZ NOT NULL,
-    amount_cents BIGINT NOT NULL,
-    cost_center_id UUID REFERENCES cost_centers(id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_invoice_items_invoice ON corporate_invoice_items(invoice_id);
-
--- Cost Centers
+-- Cost centers must exist before invoice items can reference them.
 CREATE TABLE IF NOT EXISTS cost_centers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     account_id UUID NOT NULL REFERENCES business_accounts(id) ON DELETE CASCADE,
@@ -49,7 +35,19 @@ CREATE TABLE IF NOT EXISTS cost_centers (
 
 CREATE INDEX idx_cost_centers_account ON cost_centers(account_id);
 
--- Trigger to update timestamps
+CREATE TABLE IF NOT EXISTS corporate_invoice_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invoice_id UUID NOT NULL REFERENCES corporate_invoices(id) ON DELETE CASCADE,
+    description TEXT NOT NULL,
+    ride_id UUID REFERENCES rides(id) ON DELETE SET NULL,
+    date TIMESTAMPTZ NOT NULL,
+    amount_cents BIGINT NOT NULL,
+    cost_center_id UUID REFERENCES cost_centers(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_invoice_items_invoice ON corporate_invoice_items(invoice_id);
+
 CREATE OR REPLACE FUNCTION update_billing_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN

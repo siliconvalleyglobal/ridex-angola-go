@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,8 +41,9 @@ func SecurityHeaders() gin.HandlerFunc {
 }
 
 // CORS restricts browser callers to the explicitly configured origins. An
-// empty allow-list intentionally denies cross-origin requests.
-func CORS(allowedOrigins []string, allowCredentials bool) gin.HandlerFunc {
+// empty allow-list intentionally denies cross-origin requests. When
+// allowLoopback is true (local development), Expo web on localhost is allowed.
+func CORS(allowedOrigins []string, allowCredentials bool, allowLoopback bool) gin.HandlerFunc {
 	origins := make(map[string]struct{}, len(allowedOrigins))
 	for _, origin := range allowedOrigins {
 		origin = strings.TrimSpace(origin)
@@ -52,7 +54,7 @@ func CORS(allowedOrigins []string, allowCredentials bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
 		if origin != "" {
-			if _, ok := origins[origin]; ok {
+			if _, ok := origins[origin]; ok || (allowLoopback && loopbackOrigin(origin)) {
 				c.Header("Access-Control-Allow-Origin", origin)
 				c.Header("Vary", "Origin")
 				c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
@@ -71,6 +73,18 @@ func CORS(allowedOrigins []string, allowCredentials bool) gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+func loopbackOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	host := u.Hostname()
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
 // RequestSizeLimit prevents handlers from reading unbounded request bodies.

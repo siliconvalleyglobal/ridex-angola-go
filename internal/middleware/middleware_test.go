@@ -66,7 +66,7 @@ func TestRateLimiterRejectsAfterLimit(t *testing.T) {
 func TestCORSAllowsConfiguredOriginAndHandlesPreflight(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.Use(CORS([]string{"https://app.example"}, true))
+	r.Use(CORS([]string{"https://app.example"}, true, false))
 	r.POST("/", func(c *gin.Context) { c.Status(204) })
 
 	req := httptest.NewRequest("OPTIONS", "/", nil)
@@ -83,6 +83,21 @@ func TestCORSAllowsConfiguredOriginAndHandlesPreflight(t *testing.T) {
 	r.ServeHTTP(res, req)
 	if res.Code != 403 {
 		t.Fatalf("unconfigured preflight status = %d, want 403", res.Code)
+	}
+}
+
+func TestCORSAllowsLoopbackInDevelopment(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	r.Use(CORS(nil, false, true))
+	r.GET("/", func(c *gin.Context) { c.Status(204) })
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set("Origin", "http://localhost:8081")
+	res := httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+	if res.Code != 204 || res.Header().Get("Access-Control-Allow-Origin") != "http://localhost:8081" {
+		t.Fatalf("loopback CORS = %d allow-origin %q", res.Code, res.Header().Get("Access-Control-Allow-Origin"))
 	}
 }
 

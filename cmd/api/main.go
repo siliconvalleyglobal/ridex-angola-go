@@ -44,6 +44,7 @@ import (
 	"github.com/ridex/ridex-angola/internal/support"
 	"github.com/ridex/ridex-angola/internal/trust"
 	"github.com/ridex/ridex-angola/internal/zones"
+	"github.com/ridex/ridex-angola/web"
 	"go.uber.org/zap"
 )
 
@@ -74,7 +75,10 @@ func main() {
 	r.Use(middleware.RecoveryJSON())
 	r.Use(middleware.RequestID())
 	r.Use(middleware.SecurityHeaders())
-	r.Use(middleware.CORS(cfg.CORSAllowedOrigins, cfg.CORSAllowCredentials))
+	allowLoopback := strings.EqualFold(cfg.Environment, "development") ||
+		strings.EqualFold(cfg.Environment, "dev") ||
+		strings.EqualFold(cfg.Environment, "test")
+	r.Use(middleware.CORS(cfg.CORSAllowedOrigins, cfg.CORSAllowCredentials, allowLoopback))
 	r.Use(middleware.RequestSizeLimit(cfg.MaxRequestBodyBytes))
 	r.Use(middleware.ErrorHandler())
 	r.Use(middleware.NewRateLimiter(120, time.Minute))
@@ -195,8 +199,15 @@ func main() {
 
 	// Root welcome
 	r.GET("/", func(c *gin.Context) {
-		c.String(http.StatusOK, "Welcome to Ridex Angola API (Go/Gin)")
+		c.JSON(http.StatusOK, gin.H{
+			"service": "ridex-angola-api",
+			"studio":  "/app",
+			"health":  "/health",
+		})
 	})
+	r.GET("/app", serveStudio)
+	r.GET("/app/", serveStudio)
+	r.GET("/mobile", serveStudio)
 
 	// Health endpoint
 	r.GET("/health", func(c *gin.Context) {
@@ -507,6 +518,13 @@ func main() {
 	}
 
 	logger.Info("server exited")
+}
+
+func serveStudio(c *gin.Context) {
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate")
+	c.Header("Pragma", "no-cache")
+	c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:")
+	c.Data(http.StatusOK, "text/html; charset=utf-8", web.IndexHTML())
 }
 
 // zapGinMiddleware returns a Gin middleware that logs each request with zap.

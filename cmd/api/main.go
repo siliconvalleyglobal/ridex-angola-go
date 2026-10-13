@@ -75,7 +75,10 @@ func main() {
 	r.Use(middleware.RecoveryJSON())
 	r.Use(middleware.RequestID())
 	r.Use(middleware.SecurityHeaders())
-	r.Use(middleware.CORS(cfg.CORSAllowedOrigins, cfg.CORSAllowCredentials))
+	allowLoopback := strings.EqualFold(cfg.Environment, "development") ||
+		strings.EqualFold(cfg.Environment, "dev") ||
+		strings.EqualFold(cfg.Environment, "test")
+	r.Use(middleware.CORS(cfg.CORSAllowedOrigins, cfg.CORSAllowCredentials, allowLoopback))
 	r.Use(middleware.RequestSizeLimit(cfg.MaxRequestBodyBytes))
 	r.Use(middleware.ErrorHandler())
 	r.Use(middleware.NewRateLimiter(120, time.Minute))

@@ -1,0 +1,32 @@
+{
+  "name": "ridex-angola",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "private": true,
+  "preinstall": "bun x only-allow bun",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write ."
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~57.0.16",
+    "expo": "~57.0.28",
+    "expo-constants": "~57.0.21",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-web": "^0.21.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  }
+}

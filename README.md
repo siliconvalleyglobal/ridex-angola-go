@@ -18,8 +18,25 @@ Then open:
 - App: http://127.0.0.1:8080/app
 - Mobile alias: http://127.0.0.1:8080/mobile
 
-Use **Passageiro** / **Motorista** to switch roles on the same map. There is
-no separate Expo/Play client in this repo.
+Use **Passageiro** / **Motorista** to switch roles on the same map.
+
+## Expo iOS / Android app
+
+`mobile/` is an Expo SDK 57 app that calls this API. **Use Expo**, not a
+hand-written Xcode project. Xcode is still needed on a Mac to run the
+**iOS Simulator**.
+
+```bash
+./scripts/dev-local.sh          # API on :8080
+cd mobile && bun install && bun run ios
+```
+
+- iPhone Simulator: `bun run ios` (Xcode + Simulator installed)
+- Physical iPhone: `bun start`, then scan the QR with **Expo Go** (same Wi-Fi)
+- Web preview: `bun run web`
+
+On a device, the app uses the Metro host IP and port `8080`. Override with
+`EXPO_PUBLIC_API_URL=http://<mac-ip>:8080`.
 
 Demo accounts (password `DemoPass123!`):
 
@@ -29,28 +46,10 @@ Demo accounts (password `DemoPass123!`):
 | Rider | `+244923000001` |
 | Driver | `+244923000002` |
 
-## Testing on iPhone
+## Testing on iPhone (Safari fallback)
 
-This repository is Go only. There is no `.xcodeproj`, Expo app, or App Store
-binary here, so Xcode Simulator cannot run a native RideX iOS client from
-this tree.
-
-To test the current rider/driver UI on a real iPhone:
-
-1. On your Mac, start the backend: `./scripts/dev-local.sh`
-2. Find the Mac LAN address (`ipconfig getifaddr en0`, e.g. `192.168.1.20`)
-3. Confirm the API is reachable: `http://<mac-ip>:8080/health`
-4. On the iPhone (same Wi-Fi), open Safari to `http://<mac-ip>:8080/app`
-5. Optional: Share → **Add to Home Screen** for a full-screen RideX icon
-
-Safari talks to `/app` on the same origin, so CORS does not apply. If the
-phone cannot load the page, allow incoming connections on port 8080 in
-macOS Firewall.
-
-A native iOS app (Swift or Expo) would be a **separate client** that calls
-this API. Point it at `http://<mac-ip>:8080/api/v1`, set
-`CORS_ALLOWED_ORIGINS` to that app's origin if it is a WebView, and run it
-from a Mac with Xcode. This Linux environment cannot run the iOS Simulator.
+If you only want the HTML studio, open `http://<mac-ip>:8080/app` in Safari
+and optionally Share → **Add to Home Screen**.
 
 ## Processes
 
